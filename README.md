@@ -1,6 +1,11 @@
 # Sklad 📦
 
-> Industrial-grade secure snippet warehouse for your system tray.
+[![GitHub Release](https://img.shields.io/github/v/release/Rench321/sklad?include_prereleases&style=flat-square)](https://github.com/Rench321/sklad/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
+[![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
+
+**Sklad** (Russian for "warehouse") is a cross-platform snippet manager that lives in your system tray. Store passwords, API keys, code snippets, and any text you copy frequently — encrypted and always one click away.
 
 <!-- TODO: Add demo GIF here -->
 <!-- ![Demo](public/demo.gif) -->
@@ -8,6 +13,18 @@
 <p align="center">
   <i>🎬 Demo GIF coming soon...</i>
 </p>
+
+---
+
+## ✨ Features
+
+- 🔒 **Master Password Protection** — Secrets are AES-256 encrypted with Argon2 key derivation
+- 📋 **One-Click Copy** — Click tray → select snippet → done
+- 🔍 **Quick Search** — Find anything instantly with `Cmd/Ctrl+K`
+- 📁 **Folder Organization** — Organize snippets into nested folders
+- 🌙 **Dark/Light Theme** — Easy on the eyes
+- 💾 **Local-Only Storage** — Your data never leaves your machine
+- 🖱 **Left-Click Quick Copy** — Left-click tray to copy last used snippet
 
 ---
 
@@ -19,7 +36,12 @@
 |:-------:|:---------------------:|:-------------:|:-----:|
 | [📦 .msi](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (ARM)](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (x64)](https://github.com/Rench321/sklad/releases/latest) | [📦 .deb](https://github.com/Rench321/sklad/releases/latest) |
 
-> ⚠️ **macOS users:** If you see "Sklad is damaged", run: `xattr -cr /Applications/Sklad.app`
+> [!WARNING]
+> **macOS users:** The app is not notarized yet (requires Apple Developer account).  
+> If you see *"Sklad is damaged"*, open Terminal and run:
+> ```bash
+> xattr -cr /Applications/Sklad.app
+> ```
 
 ---
 
@@ -37,18 +59,7 @@
 
 ---
 
-## Features
-
-- 🔒 **Master Password Protection** — Secrets are AES-256 encrypted
-- 📋 **One-Click Copy** — Click tray, select snippet, done
-- 🌙 **Dark/Light Theme** — Easy on the eyes
-- 💾 **Local-Only Storage** — Your data never leaves your machine
-- 📁 **Folder Organization** — Keep your snippets tidy
-- ⌨️ **Quick Search** — Find anything instantly
-
----
-
-## Build from Source
+## 🛠 Build from Source
 
 ### Prerequisites
 
@@ -56,12 +67,27 @@
 - [Node.js](https://nodejs.org/) (v18+)
 - [pnpm](https://pnpm.io/)
 
-**Windows:** Also needs [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
+<details>
+<summary><b>Windows</b></summary>
 
-**Linux:** Also needs:
+Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload.
+</details>
+
+<details>
+<summary><b>Linux (Debian/Ubuntu)</b></summary>
+
 ```bash
 sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
 ```
+</details>
+
+<details>
+<summary><b>macOS</b></summary>
+
+```bash
+xcode-select --install
+```
+</details>
 
 ### Build
 
@@ -76,6 +102,18 @@ Binaries will be in `src-tauri/target/release/bundle/`.
 
 ---
 
-## License
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to open issues or submit PRs.
+
+---
+
+## 📄 License
 
 [MIT](LICENSE) — Use it however you want.
+
+---
+
+<p align="center">
+  Made with 🦀 Rust + ⚛️ React + 💙 Tauri
+</p>
