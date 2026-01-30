@@ -1,0 +1,357 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ============================================
+   LIGHT THEME - Warm Industrial
+   ============================================ */
+:root {
+  --radius: 0.5rem;
+
+  /* Warm light backgrounds */
+  --background: hsl(40 20% 98%);
+  --foreground: hsl(30 15% 12%);
+
+  /* Cards with subtle warmth */
+  --card: hsl(40 15% 99%);
+  --card-foreground: hsl(30 15% 12%);
+
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(30 15% 12%);
+
+  /* Primary - Industrial Amber/Orange */
+  --primary: hsl(35 90% 50%);
+  --primary-foreground: hsl(0 0% 100%);
+
+  /* Secondary - Warm gray */
+  --secondary: hsl(40 10% 94%);
+  --secondary-foreground: hsl(30 10% 20%);
+
+  /* Muted - Softer tones */
+  --muted: hsl(40 8% 95%);
+  --muted-foreground: hsl(30 5% 45%);
+
+  /* Accent - Amber glow */
+  --accent: hsl(40 30% 92%);
+  --accent-foreground: hsl(30 10% 20%);
+
+  /* Destructive */
+  --destructive: hsl(0 70% 50%);
+  --destructive-foreground: hsl(0 0% 98%);
+
+  /* Borders & inputs */
+  --border: hsl(40 10% 88%);
+  --input: hsl(40 10% 90%);
+  --ring: hsl(35 90% 50%);
+
+  /* Charts */
+  --chart-1: hsl(35 90% 50%);
+  --chart-2: hsl(180 50% 45%);
+  --chart-3: hsl(220 50% 40%);
+  --chart-4: hsl(80 60% 50%);
+  --chart-5: hsl(20 80% 55%);
+
+  /* Sidebar */
+  --sidebar: hsl(40 15% 96%);
+  --sidebar-foreground: hsl(30 15% 15%);
+  --sidebar-primary: hsl(35 90% 50%);
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(40 25% 93%);
+  --sidebar-accent-foreground: hsl(30 15% 15%);
+  --sidebar-border: hsl(40 10% 88%);
+  --sidebar-ring: hsl(35 90% 50%);
+
+  /* Custom properties for effects */
+  --glow-color: hsla(35, 90%, 50%, 0.3);
+  --glass-bg: hsla(0, 0%, 100%, 0.7);
+  --glass-border: hsla(0, 0%, 0%, 0.08);
+}
+
+/* ============================================
+   DARK THEME - Deep Industrial
+   ============================================ */
+.dark {
+  /* Deep charcoal backgrounds with subtle warmth */
+  --background: hsl(30 10% 8%);
+  --foreground: hsl(40 10% 93%);
+
+  /* Card - Slightly elevated */
+  --card: hsl(30 10% 10%);
+  --card-foreground: hsl(40 10% 93%);
+
+  --popover: hsl(30 10% 12%);
+  --popover-foreground: hsl(40 10% 93%);
+
+  /* Primary - Bright Industrial Amber */
+  --primary: hsl(38 95% 55%);
+  --primary-foreground: hsl(30 10% 8%);
+
+  /* Secondary */
+  --secondary: hsl(30 8% 18%);
+  --secondary-foreground: hsl(40 10% 90%);
+
+  /* Muted */
+  --muted: hsl(30 8% 18%);
+  --muted-foreground: hsl(40 5% 55%);
+
+  /* Accent - Amber tint */
+  --accent: hsl(35 20% 18%);
+  --accent-foreground: hsl(40 10% 93%);
+
+  /* Destructive */
+  --destructive: hsl(0 60% 40%);
+  --destructive-foreground: hsl(0 80% 65%);
+
+  /* Borders */
+  --border: hsl(30 8% 22%);
+  --input: hsl(30 8% 20%);
+  --ring: hsl(38 95% 55%);
+
+  /* Charts */
+  --chart-1: hsl(38 95% 55%);
+  --chart-2: hsl(170 60% 50%);
+  --chart-3: hsl(280 60% 55%);
+  --chart-4: hsl(110 70% 50%);
+  --chart-5: hsl(15 80% 55%);
+
+  /* Sidebar - Slightly different shade */
+  --sidebar: hsl(30 12% 6%);
+  --sidebar-foreground: hsl(40 10% 90%);
+  --sidebar-primary: hsl(38 95% 55%);
+  --sidebar-primary-foreground: hsl(30 10% 8%);
+  --sidebar-accent: hsl(35 15% 15%);
+  --sidebar-accent-foreground: hsl(40 10% 93%);
+  --sidebar-border: hsl(30 8% 20%);
+  --sidebar-ring: hsl(38 95% 55%);
+
+  /* Custom properties for effects */
+  --glow-color: hsla(38, 95%, 55%, 0.35);
+  --glass-bg: hsla(30, 10%, 10%, 0.8);
+  --glass-border: hsla(0, 0%, 100%, 0.08);
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+@layer base {
+  * {
+    @apply border-border;
+    outline-color: hsl(var(--ring) / 0.5);
+  }
+
+  html {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
+  }
+
+  /* Hide native browser password reveal button */
+  input::-ms-reveal,
+  input::-ms-clear {
+    display: none;
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+@layer utilities {
+
+  /* Glassmorphism */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px) saturate(1.5);
+    -webkit-backdrop-filter: blur(12px) saturate(1.5);
+    border: 1px solid var(--glass-border);
+  }
+
+  .glass-subtle {
+    background: var(--glass-bg);
+    backdrop-filter: blur(8px) saturate(1.2);
+    -webkit-backdrop-filter: blur(8px) saturate(1.2);
+  }
+
+  /* Glow effects */
+  .glow {
+    box-shadow: 0 0 20px var(--glow-color);
+  }
+
+  .glow-sm {
+    box-shadow: 0 0 10px var(--glow-color);
+  }
+
+  .glow-text {
+    text-shadow: 0 0 20px var(--glow-color);
+  }
+
+  /* Industrial gradient backgrounds */
+  .bg-industrial {
+    background:
+      radial-gradient(ellipse at 20% 0%, var(--glow-color) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 100%, hsla(200, 50%, 40%, 0.15) 0%, transparent 50%),
+      var(--background);
+  }
+
+  .bg-grid {
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Smooth transitions */
+  .transition-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Font mono */
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 15px var(--glow-color);
+  }
+
+  50% {
+    box-shadow: 0 0 25px var(--glow-color), 0 0 40px var(--glow-color);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rotate-icon {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@layer utilities {
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 3s ease-in-out infinite;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  .animate-slide-in {
+    animation: slide-in-left 0.3s ease-out forwards;
+  }
+
+  .animate-rotate {
+    animation: rotate-icon 0.5s ease-in-out;
+  }
+}
