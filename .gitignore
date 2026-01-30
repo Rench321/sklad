@@ -13,9 +13,11 @@ dist-ssr
 *.local
 
 # Editor directories and files
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 .idea
+
+# Tauri auto-generated
+src-tauri/gen/
 .DS_Store
 *.suo
 *.ntvs*
