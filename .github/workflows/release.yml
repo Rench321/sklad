@@ -40,7 +40,7 @@ jobs:
           version: 9
 
       - name: Install Rust stable
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Add macOS targets
         if: matrix.platform == 'macos-latest'
