@@ -31,11 +31,14 @@
 
 ## ⬇️ Download
 
-[![GitHub Release](https://img.shields.io/github/v/release/Rench321/sklad?style=for-the-badge)](https://github.com/Rench321/sklad/releases/latest)
+[![GitHub Release](https://img.shields.io/github/v/release/Rench321/sklad?include_prereleases&style=for-the-badge&label=Pre-release)](https://github.com/Rench321/sklad/releases)
+
+> [!NOTE]
+> 🚧 **Early Access** — Sklad is in active development. Expect bugs and breaking changes.
 
 | Windows | macOS (Apple Silicon) | macOS (Intel) | Linux |
 |:-------:|:---------------------:|:-------------:|:-----:|
-| [📦 .msi](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (ARM)](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (x64)](https://github.com/Rench321/sklad/releases/latest) | [📦 .deb](https://github.com/Rench321/sklad/releases/latest) |
+| [📦 .msi](https://github.com/Rench321/sklad/releases) | [📦 .dmg (ARM)](https://github.com/Rench321/sklad/releases) | [📦 .dmg (x64)](https://github.com/Rench321/sklad/releases) | [📦 .deb](https://github.com/Rench321/sklad/releases) |
 
 > [!WARNING]
 > **Windows users:** You may see a SmartScreen warning because the app is not code-signed yet and has few downloads. Click *"More info"* → *"Run anyway"* to proceed.
