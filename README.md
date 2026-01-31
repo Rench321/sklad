@@ -5,13 +5,10 @@
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 
-**Sklad** (Russian for "warehouse") is a cross-platform snippet manager that lives in your system tray. Store passwords, API keys, code snippets, and any text you copy frequently — encrypted and always one click away.
-
-<!-- TODO: Add demo GIF here -->
-<!-- ![Demo](public/demo.gif) -->
+**Sklad** is a cross-platform snippet manager that lives in your system tray. Store passwords, API keys, code snippets, and any text you copy frequently — encrypted and always one click away.
 
 <p align="center">
-  <i>🎬 Demo GIF coming soon...</i>
+  <img src="public/demo.gif" alt="Sklad Demo" width="600">
 </p>
 
 ---
@@ -26,6 +23,10 @@
 - 💾 **Local-Only Storage** — Your data never leaves your machine
 - 🖱 **Left-Click Quick Copy** — Left-click tray to copy last used snippet
 
+<p align="center">
+  <img src="public/screenshot.png" alt="Sklad UI" width="700">
+</p>
+
 ---
 
 ## ⬇️ Download
@@ -35,6 +36,9 @@
 | Windows | macOS (Apple Silicon) | macOS (Intel) | Linux |
 |:-------:|:---------------------:|:-------------:|:-----:|
 | [📦 .msi](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (ARM)](https://github.com/Rench321/sklad/releases/latest) | [📦 .dmg (x64)](https://github.com/Rench321/sklad/releases/latest) | [📦 .deb](https://github.com/Rench321/sklad/releases/latest) |
+
+> [!WARNING]
+> **Windows users:** You may see a SmartScreen warning because the app is not code-signed yet and has few downloads. Click *"More info"* → *"Run anyway"* to proceed.
 
 > [!WARNING]
 > **macOS users:** The app is not notarized yet (requires Apple Developer account).  
