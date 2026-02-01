@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Node } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,11 +30,20 @@ export function SnippetEditor({
     const [isSaving, setIsSaving] = useState(false);
     const [copied, setCopied] = useState(false);
 
+    // Track last saved state to calculate isDirty
+    const savedState = useRef({ label: node.label, value: node.value || "", isSecret: node.isSecret || false });
+
     useEffect(() => {
         setLabel(node.label);
         setValue(node.value || "");
         setIsSecret(node.isSecret || false);
-    }, [node]);
+        savedState.current = { label: node.label, value: node.value || "", isSecret: node.isSecret || false };
+    }, [node.id, node.label, node.value, node.isSecret]);
+
+    const isDirty =
+        label !== savedState.current.label ||
+        value !== savedState.current.value ||
+        isSecret !== savedState.current.isSecret;
 
     const handleSave = async () => {
         if (isSecret && (!masterPasswordEnabled || !isUnlocked)) return;
@@ -48,6 +57,7 @@ export function SnippetEditor({
         };
 
         onSave(updatedNode);
+        savedState.current = { label, value, isSecret };
         setTimeout(() => setIsSaving(false), 500);
     };
 
@@ -145,26 +155,17 @@ export function SnippetEditor({
                             </>
                         )}
                     </Button>
-                    {(() => {
-                        const isDirty =
-                            label !== node.label ||
-                            value !== (node.value || "") ||
-                            isSecret !== (node.isSecret || false);
-
-                        return (
-                            <Button
-                                onClick={handleSave}
-                                disabled={isSaving || !isDirty || (isSecret && (!masterPasswordEnabled || !isUnlocked))}
-                                className={cn(
-                                    "shadow-lg hover:shadow-xl transition-all",
-                                    !isDirty ? "opacity-50" : "bg-primary hover:bg-primary/90"
-                                )}
-                            >
-                                <Save className="w-4 h-4 mr-2" />
-                                {isSaving ? "Saving..." : "Save"}
-                            </Button>
-                        );
-                    })()}
+                    <Button
+                        onClick={handleSave}
+                        disabled={isSaving || !isDirty || (isSecret && (!masterPasswordEnabled || !isUnlocked))}
+                        className={cn(
+                            "shadow-lg hover:shadow-xl transition-all",
+                            !isDirty ? "opacity-50" : "bg-primary hover:bg-primary/90"
+                        )}
+                    >
+                        <Save className="w-4 h-4 mr-2" />
+                        {isSaving ? "Saving..." : "Save"}
+                    </Button>
                 </div>
             </div>
 
