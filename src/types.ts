@@ -19,9 +19,10 @@ export interface Node {
 export interface AppSettings {
     theme: 'dark' | 'light' | 'system';
     security: {
-        lockTimeout: number; // Minutes to auto-lock (0 = disabled)
-        clearClipboard: boolean; // Clear after 30s
+        lockTimeout: number;
+        clearClipboard: boolean;
         masterPasswordEnabled: boolean;
     };
     notificationsEnabled: boolean;
+    launchAtStartup: boolean;
 }

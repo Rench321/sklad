@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { AppSettings } from "@/types";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell } from "lucide-react";
+import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { invoke } from "@tauri-apps/api/core";
 
 interface SettingsProps {
     settings: AppSettings;
@@ -30,6 +31,19 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
         };
         fetchPath();
     }, []);
+
+    const handleAutoStartChange = async (enabled: boolean) => {
+        try {
+            if (enabled) {
+                await invoke("plugin:autostart|enable");
+            } else {
+                await invoke("plugin:autostart|disable");
+            }
+            onSettingsUpdate({ ...settings, launchAtStartup: enabled });
+        } catch (error) {
+            console.error("Failed to toggle autostart", error);
+        }
+    };
 
 
     return (
@@ -85,13 +99,29 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <Bell className="w-5 h-5 text-primary" />
-                        <CardTitle className="text-lg">Desktop Notifications</CardTitle>
+                        <CardTitle className="text-lg">System</CardTitle>
                     </div>
                     <CardDescription>
                         Control how Sklad interacts with your system.
                     </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="autostart" className="text-base font-semibold flex items-center gap-2">
+                                <Power className="w-4 h-4" />
+                                Launch at Startup
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Automatically start Sklad when you log in to your computer.
+                            </p>
+                        </div>
+                        <Switch
+                            id="autostart"
+                            checked={settings.launchAtStartup}
+                            onCheckedChange={handleAutoStartChange}
+                        />
+                    </div>
                     <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="notifications" className="text-base font-semibold">

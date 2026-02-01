@@ -29,4 +29,5 @@ aes-gcm = "0.10.3"
 argon2 = "0.5.3"
 rand = "0.9.2"
 hex = "0.4.3"
+tauri-plugin-autostart = "2"
 

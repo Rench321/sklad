@@ -12,6 +12,7 @@
     "opener:default",
     "notification:default",
     "clipboard-manager:default",
-    "store:default"
+    "store:default",
+    "autostart:default"
   ]
 }

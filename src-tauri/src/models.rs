@@ -50,7 +50,7 @@ impl Default for AppSettingsSecurity {
         Self {
             lock_timeout: 0,
             clear_clipboard: false,
-            master_password_enabled: true,
+            master_password_enabled: false, // No password set yet on fresh install
             password_hash: None,
             derivation_salt: None,
         }
@@ -63,6 +63,8 @@ pub struct AppSettings {
     pub security: AppSettingsSecurity,
     #[serde(rename = "notificationsEnabled")]
     pub notifications_enabled: bool,
+    #[serde(rename = "launchAtStartup", default)]
+    pub launch_at_startup: bool,
 }
 
 impl Default for AppSettings {
@@ -71,6 +73,7 @@ impl Default for AppSettings {
             theme: "system".to_string(),
             security: AppSettingsSecurity::default(),
             notifications_enabled: true,
+            launch_at_startup: false,
         }
     }
 }
