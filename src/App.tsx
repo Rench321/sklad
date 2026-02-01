@@ -8,8 +8,19 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Settings } from "@/components/Settings";
 import { api } from "@/lib/api";
+import {
+  findNodeById,
+  updateNodeInTree,
+  removeNodeFromTree,
+  addNodeToParent,
+  purgeSecretValues,
+  insertNodeAtPosition,
+  isDescendantOf,
+} from "@/lib/treeUtils";
 import { Node, AppSettings } from "@/types";
 import { Container, Search, Lock, Unlock } from "lucide-react";
+
+const AUTO_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 
 function App() {
   const [showLockModal, setShowLockModal] = useState(false);
@@ -19,45 +30,30 @@ function App() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [pendingCopyAction, setPendingCopyAction] = useState<{ id: string, autoHide: boolean } | null>(null);
+  const [pendingCopyAction, setPendingCopyAction] = useState<{
+    id: string;
+    autoHide: boolean;
+  } | null>(null);
 
   useEffect(() => {
     initializeApp();
 
-    const setupListener = async () => {
-      const unlisten = await listen<string>("request-unlock", (event) => {
-        console.log("Unlock requested for snippet:", event.payload);
-        setPendingCopyAction({ id: event.payload, autoHide: true });
-        setShowLockModal(true);
-      });
-      return unlisten;
-    };
+    const unlisten = listen<string>("request-unlock", (event) => {
+      setPendingCopyAction({ id: event.payload, autoHide: true });
+      setShowLockModal(true);
+    });
 
-    const unlistenPromise = setupListener();
     return () => {
-      unlistenPromise.then(unlisten => unlisten && unlisten());
+      unlisten.then((fn) => fn());
     };
   }, []);
 
   const refreshSelectedNode = (freshNodes: Node[]) => {
-    if (selectedNode) {
-      if (selectedNode.id === 'settings') return;
+    if (!selectedNode || selectedNode.id === "settings") return;
 
-      const findInTree = (list: Node[]): Node | undefined => {
-        for (const n of list) {
-          if (n.id === selectedNode.id) return n;
-          if (n.children) {
-            const found = findInTree(n.children);
-            if (found) return found;
-          }
-        }
-        return undefined;
-      };
-
-      const freshSelected = findInTree(freshNodes);
-      if (freshSelected) {
-        setSelectedNode(freshSelected);
-      }
+    const freshSelected = findNodeById(freshNodes, selectedNode.id);
+    if (freshSelected) {
+      setSelectedNode(freshSelected);
     }
   };
 
@@ -66,15 +62,14 @@ function App() {
       const [data, appSettings, unlocked] = await Promise.all([
         api.getData(),
         api.getSettings(),
-        api.isVaultUnlocked()
+        api.isVaultUnlocked(),
       ]);
 
-      const freshNodes = data || [];
+      const freshNodes = data ?? [];
       setNodes(freshNodes);
       setSettings(appSettings);
       setIsUnlocked(unlocked);
       refreshSelectedNode(freshNodes);
-
       setLoaded(true);
     } catch (e) {
       console.error(e);
@@ -92,10 +87,10 @@ function App() {
     try {
       const [data, unlocked] = await Promise.all([
         api.getData(),
-        api.isVaultUnlocked()
+        api.isVaultUnlocked(),
       ]);
 
-      const freshNodes = data || [];
+      const freshNodes = data ?? [];
       setNodes(freshNodes);
       setIsUnlocked(unlocked);
       refreshSelectedNode(freshNodes);
@@ -104,49 +99,28 @@ function App() {
     }
   };
 
-  // Auto-lock timer: 5 minutes after unlocking
   useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    if (isUnlocked) {
-      timeout = setTimeout(async () => {
-        try {
-          await api.lockVault();
-          setIsUnlocked(false);
+    if (!isUnlocked) return;
 
-          // Immediate memory purge
-          const purgeSecrets = (list: Node[]): Node[] => {
-            return list.map(n => ({
-              ...n,
-              value: n.isSecret ? "" : n.value,
-              children: n.children ? purgeSecrets(n.children) : undefined
-            }));
-          };
+    const timeout = setTimeout(async () => {
+      try {
+        await api.lockVault();
+        setIsUnlocked(false);
+        setNodes((prev) => purgeSecretValues(prev));
+        setSelectedNode((prev) =>
+          prev?.isSecret ? { ...prev, value: "" } : prev
+        );
+        loadNodes();
+      } catch (e) {
+        console.error("Auto-lock failed", e);
+      }
+    }, AUTO_LOCK_TIMEOUT_MS);
 
-          setNodes(prev => purgeSecrets(prev));
-          setSelectedNode(prev => {
-            if (prev?.isSecret) return { ...prev, value: "" };
-            return prev;
-          });
-
-          loadNodes(); // Reload to confirm state
-        } catch (e) {
-          console.error("Auto-lock failed", e);
-        }
-      }, 5 * 60 * 1000); // 5 minutes
-    }
     return () => clearTimeout(timeout);
   }, [isUnlocked]);
 
   const handleSaveNode = async (updatedNode: Node) => {
-    const updateTree = (list: Node[]): Node[] => {
-      return list.map((n) => {
-        if (n.id === updatedNode.id) return updatedNode;
-        if (n.children) return { ...n, children: updateTree(n.children) };
-        return n;
-      });
-    };
-
-    const newNodes = updateTree(nodes);
+    const newNodes = updateNodeInTree(nodes, updatedNode.id, () => updatedNode);
     setNodes(newNodes);
     await api.saveData(newNodes);
   };
@@ -154,25 +128,19 @@ function App() {
   const handleLockVault = async () => {
     await api.lockVault();
     setIsUnlocked(false);
+    setNodes((prev) => purgeSecretValues(prev));
 
-    // Immediate memory purge
-    const purgeSecrets = (list: Node[]): Node[] => {
-      return list.map(n => ({
-        ...n,
-        value: n.isSecret ? "" : n.value,
-        children: n.children ? purgeSecrets(n.children) : undefined
-      }));
-    };
-
-    setNodes(prev => purgeSecrets(prev));
     if (selectedNode?.isSecret) {
-      setSelectedNode(prev => prev ? { ...prev, value: "" } : null);
+      setSelectedNode((prev) => (prev ? { ...prev, value: "" } : null));
     }
 
     loadNodes();
   };
 
-  const handleAddNode = async (parentId: string | null, type: "folder" | "snippet") => {
+  const handleAddNode = async (
+    parentId: string | null,
+    type: "folder" | "snippet"
+  ) => {
     const newNode: Node = {
       id: crypto.randomUUID(),
       type,
@@ -183,148 +151,59 @@ function App() {
       children: type === "folder" ? [] : undefined,
     };
 
-    let newNodes: Node[];
-    if (parentId === null) {
-      newNodes = [...nodes, newNode];
-    } else {
-      const addToParent = (list: Node[]): Node[] => {
-        return list.map((n) => {
-          if (n.id === parentId) {
-            return { ...n, children: [...(n.children || []), newNode] };
-          }
-          if (n.children) return { ...n, children: addToParent(n.children) };
-          return n;
-        });
-      };
-      newNodes = addToParent(nodes);
-    }
-
+    const newNodes = addNodeToParent(nodes, parentId, newNode);
     setNodes(newNodes);
     setSelectedNode(newNode);
     await api.saveData(newNodes);
   };
 
   const handleDeleteNode = async (nodeId: string) => {
-    const removeFromTree = (list: Node[]): Node[] => {
-      return list
-        .filter((n) => n.id !== nodeId)
-        .map((n) => {
-          if (n.children) return { ...n, children: removeFromTree(n.children) };
-          return n;
-        });
-    };
-
-    const newNodes = removeFromTree(nodes);
+    const newNodes = removeNodeFromTree(nodes, nodeId);
     setNodes(newNodes);
     if (selectedNode?.id === nodeId) setSelectedNode(null);
     await api.saveData(newNodes);
   };
 
   const handleRenameNode = async (nodeId: string, newLabel: string) => {
-    const updateTree = (list: Node[]): Node[] => {
-      return list.map((n) => {
-        if (n.id === nodeId) return { ...n, label: newLabel };
-        if (n.children) return { ...n, children: updateTree(n.children) };
-        return n;
-      });
-    };
-
-    const newNodes = updateTree(nodes);
+    const newNodes = updateNodeInTree(nodes, nodeId, (n) => ({
+      ...n,
+      label: newLabel,
+    }));
     setNodes(newNodes);
-    // If the renamed node is selected, update it too
+
     if (selectedNode?.id === nodeId) {
       setSelectedNode({ ...selectedNode, label: newLabel });
     }
     await api.saveData(newNodes);
   };
 
-  const handleMoveNode = async (draggedId: string, targetId: string | null, beforeId?: string | null) => {
-    // Find and remove the dragged node from its current position
-    let draggedNode: Node | null = null;
+  const handleMoveNode = async (
+    draggedId: string,
+    targetId: string | null,
+    beforeId?: string | null
+  ) => {
+    // Extract the dragged node
+    const draggedNode = findNodeById(nodes, draggedId);
+    if (!draggedNode) return;
 
-    const removeNode = (list: Node[]): Node[] => {
-      return list.filter((n) => {
-        if (n.id === draggedId) {
-          draggedNode = { ...n, parentId: targetId };
-          return false;
-        }
-        if (n.children) {
-          n.children = removeNode(n.children);
-        }
-        return true;
-      });
-    };
-
-    let newNodes = removeNode([...nodes]);
-
-    if (!draggedNode) return; // Node not found
-
-    // Prevent dropping a folder into itself or its descendants
-    if (targetId) {
-      const isDescendant = (nodeId: string, potentialAncestorId: string): boolean => {
-        const findNode = (list: Node[]): Node | undefined => {
-          for (const n of list) {
-            if (n.id === nodeId) return n;
-            if (n.children) {
-              const found = findNode(n.children);
-              if (found) return found;
-            }
-          }
-          return undefined;
-        };
-
-        const checkDescendants = (node: Node): boolean => {
-          if (node.id === potentialAncestorId) return true;
-          if (node.children) {
-            return node.children.some(checkDescendants);
-          }
-          return false;
-        };
-
-        const ancestor = findNode(nodes);
-        return ancestor ? checkDescendants(ancestor) : false;
-      };
-
-      if (draggedId === targetId || isDescendant(draggedId, targetId)) {
-        return; // Cannot drop into self or descendant
-      }
+    // Prevent dropping into self or descendants
+    if (targetId && (draggedId === targetId || isDescendantOf(nodes, draggedId, targetId))) {
+      return;
     }
 
-    // Helper to insert at position
-    const insertAtPosition = (list: Node[], nodeToInsert: Node, beforeNodeId: string | null | undefined): Node[] => {
-      if (beforeNodeId === null || beforeNodeId === undefined) {
-        // Insert at end
-        return [...list, nodeToInsert];
-      }
-      const index = list.findIndex(n => n.id === beforeNodeId);
-      if (index === -1) {
-        // beforeId not found, insert at end
-        return [...list, nodeToInsert];
-      }
-      // Insert before the found index
-      const result = [...list];
-      result.splice(index, 0, nodeToInsert);
-      return result;
-    };
+    // Remove from current position
+    let newNodes = removeNodeFromTree(nodes, draggedId);
 
-    // Add the node to its new location
+    // Update parentId and insert at new position
+    const movedNode = { ...draggedNode, parentId: targetId };
+
     if (targetId === null) {
-      // Move to root
-      newNodes = insertAtPosition(newNodes, draggedNode, beforeId);
+      newNodes = insertNodeAtPosition(newNodes, movedNode, beforeId);
     } else {
-      // Move into a folder
-      const addToParent = (list: Node[]): Node[] => {
-        return list.map((n) => {
-          if (n.id === targetId) {
-            return { ...n, children: insertAtPosition(n.children || [], draggedNode!, beforeId) };
-          }
-          if (n.children) {
-            return { ...n, children: addToParent(n.children) };
-          }
-          return n;
-        });
-      };
-      newNodes = addToParent(newNodes);
+      newNodes = updateNodeInTree(newNodes, targetId, (parent) => ({
+        ...parent,
+        children: insertNodeAtPosition(parent.children || [], movedNode, beforeId),
+      }));
     }
 
     setNodes(newNodes);

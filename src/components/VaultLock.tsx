@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Lock, Unlock, Container, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Node, AppSettings } from "@/types";
 
 interface VaultLockProps {
     onUnlock: () => void;
-    onReset: (nodes: any[], settings: any) => void;
+    onReset: (nodes: Node[], settings: AppSettings) => void;
     onCancel?: () => void;
     isInit?: boolean;
-    mode?: 'full' | 'modal';
+    mode?: "full" | "modal";
 }
 
 export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 'full' }: VaultLockProps) {

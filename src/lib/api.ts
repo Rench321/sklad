@@ -1,52 +1,29 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Node } from "../types";
+import { Node, AppSettings } from "../types";
 
 export const api = {
-    getData: async (): Promise<Node[]> => {
-        return await invoke("get_data");
-    },
+    getData: (): Promise<Node[]> => invoke("get_data"),
 
-    saveData: async (nodes: Node[]): Promise<void> => {
-        return await invoke("save_data", { nodes });
-    },
+    saveData: (nodes: Node[]): Promise<void> => invoke("save_data", { nodes }),
 
-    copySnippet: async (id: string): Promise<void> => {
-        return await invoke("copy_snippet", { id });
-    },
+    copySnippet: (id: string): Promise<void> => invoke("copy_snippet", { id }),
 
-    initVault: async (password: string): Promise<void> => {
-        return await invoke("init_vault", { password });
-    },
+    initVault: (password: string): Promise<void> => invoke("init_vault", { password }),
 
-    unlockVault: async (password: string): Promise<boolean> => {
-        return await invoke("unlock_vault", { password });
-    },
+    unlockVault: (password: string): Promise<boolean> => invoke("unlock_vault", { password }),
 
-    lockVault: async (): Promise<void> => {
-        return await invoke("lock_vault");
-    },
+    lockVault: (): Promise<void> => invoke("lock_vault"),
 
-    getSettings: async (): Promise<any> => {
-        return await invoke("get_settings");
-    },
+    getSettings: (): Promise<AppSettings> => invoke("get_settings"),
 
-    saveSettings: async (settings: any): Promise<void> => {
-        return await invoke("save_settings", { settings });
-    },
+    saveSettings: (settings: AppSettings): Promise<void> => invoke("save_settings", { settings }),
 
-    getSnippetsPath: async (): Promise<string> => {
-        return await invoke("get_snippets_path");
-    },
+    getSnippetsPath: (): Promise<string> => invoke("get_snippets_path"),
 
-    openSnippetsPath: async (): Promise<void> => {
-        return await invoke("open_snippets_path");
-    },
+    openSnippetsPath: (): Promise<void> => invoke("open_snippets_path"),
 
-    resetVault: async (): Promise<[Node[], any]> => {
-        return await invoke("reset_vault");
-    },
+    resetVault: (): Promise<[Node[], AppSettings]> => invoke("reset_vault"),
 
-    isVaultUnlocked: async (): Promise<boolean> => {
-        return await invoke("is_vault_unlocked");
-    },
+    isVaultUnlocked: (): Promise<boolean> => invoke("is_vault_unlocked"),
 };
+
