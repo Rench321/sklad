@@ -13,6 +13,7 @@
     "notification:default",
     "clipboard-manager:default",
     "store:default",
-    "autostart:default"
+    "autostart:default",
+    "core:app:default"
   ]
 }

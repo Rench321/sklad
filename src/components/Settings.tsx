@@ -19,8 +19,13 @@ interface SettingsProps {
 export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsUpdate }: SettingsProps) {
     const [snippetsPath, setSnippetsPath] = useState<string>("");
     const [confirmReset, setConfirmReset] = useState(false);
+    const [appVersion, setAppVersion] = useState("");
 
     useEffect(() => {
+        import('@tauri-apps/api/app').then(app => {
+            app.getVersion().then(setAppVersion);
+        });
+
         const fetchPath = async () => {
             try {
                 const path = await api.getSnippetsPath();
@@ -48,14 +53,21 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
 
     return (
         <div className="p-8 flex flex-col gap-8 animate-fade-in max-w-2xl mx-auto">
-            <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
-                    <SettingsIcon className="w-6 h-6 text-primary" />
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 border border-primary/20">
+                        <SettingsIcon className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight">Sklad Settings</h1>
+                        <p className="text-muted-foreground">Configure your industrial snippet storage.</p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Sklad Settings</h1>
-                    <p className="text-muted-foreground">Configure your industrial snippet storage.</p>
-                </div>
+                {appVersion && (
+                    <div className="px-3 py-1 rounded-full bg-muted/50 border border-border/50 text-xs font-mono text-muted-foreground">
+                        v{appVersion}
+                    </div>
+                )}
             </div>
 
             <Card className="glass border-border/50">
