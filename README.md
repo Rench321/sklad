@@ -1,6 +1,6 @@
 # Sklad 📦
 
-[![GitHub Release](https://img.shields.io/github/v/release/Rench321/sklad?include_prereleases&style=flat-square)](https://github.com/Rench321/sklad/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/Rench321/sklad?include_prereleases&style=flat-square&label=pre-release)](https://github.com/Rench321/sklad/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square)]()
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
@@ -66,6 +66,13 @@
 
 ---
 
+## 🌟 Featured In
+
+- [Hacker News](https://news.ycombinator.com/item?id=46854028)
+- [Korben.info (French)](https://korben.info/sklad-gestionnaire-snippets-chiffres-tray.html)
+
+---
+
 ## 🛠 Build from Source
 
 ### Prerequisites
@@ -112,6 +119,24 @@ Binaries will be in `src-tauri/target/release/bundle/`.
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to open issues or submit PRs.
+
+---
+
+
+## 👥 Contributors
+
+<a href="https://github.com/olejsc">
+  <img src="https://github.com/olejsc.png" width="50" style="border-radius: 50%;" alt="olejsc"/>
+</a>
+<a href="https://github.com/overflowy">
+  <img src="https://github.com/overflowy.png" width="50" style="border-radius: 50%;" alt="overflowy"/>
+</a>
+<a href="https://github.com/beparmentier">
+  <img src="https://github.com/beparmentier.png" width="50" style="border-radius: 50%;" alt="beparmentier"/>
+</a>
+<a href="https://github.com/marsender">
+  <img src="https://github.com/marsender.png" width="50" style="border-radius: 50%;" alt="marsender"/>
+</a>
 
 ---
 
