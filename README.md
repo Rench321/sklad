@@ -91,7 +91,7 @@ Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cp
 <summary><b>Linux (Debian/Ubuntu)</b></summary>
 
 ```bash
-sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+sudo apt install libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 ```
 </details>
 
