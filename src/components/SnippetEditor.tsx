@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Node } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,7 +45,7 @@ export function SnippetEditor({
         value !== savedState.current.value ||
         isSecret !== savedState.current.isSecret;
 
-    const handleSave = async () => {
+    const handleSave = useCallback(async () => {
         if (isSecret && (!masterPasswordEnabled || !isUnlocked)) return;
 
         setIsSaving(true);
@@ -59,7 +59,21 @@ export function SnippetEditor({
         onSave(updatedNode);
         savedState.current = { label, value, isSecret };
         setTimeout(() => setIsSaving(false), 500);
-    };
+    }, [node, label, value, isSecret, masterPasswordEnabled, isUnlocked, onSave]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                if (!isSaving && isDirty && !(isSecret && (!masterPasswordEnabled || !isUnlocked))) {
+                    handleSave();
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleSave, isSaving, isDirty, isSecret, masterPasswordEnabled, isUnlocked]);
 
     const handleCopy = async () => {
         if (isSecret && (!masterPasswordEnabled || !isUnlocked)) return;
