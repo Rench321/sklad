@@ -27,3 +27,4 @@ src-tauri/gen/
 
 # Project spec (private)
 spec.md
+docs/
