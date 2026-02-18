@@ -20,7 +20,7 @@ import {
 import { Node, AppSettings } from "@/types";
 import { Container, Search, Lock, Unlock } from "lucide-react";
 
-const AUTO_LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+
 
 function App() {
   const [showLockModal, setShowLockModal] = useState(false);
@@ -102,6 +102,10 @@ function App() {
   useEffect(() => {
     if (!isUnlocked) return;
 
+    const lockTimeout = settings?.security.lockTimeout ?? 300000;
+
+    if (lockTimeout === 0) return;
+
     const timeout = setTimeout(async () => {
       try {
         await api.lockVault();
@@ -114,10 +118,10 @@ function App() {
       } catch (e) {
         console.error("Auto-lock failed", e);
       }
-    }, AUTO_LOCK_TIMEOUT_MS);
+    }, lockTimeout);
 
     return () => clearTimeout(timeout);
-  }, [isUnlocked]);
+  }, [isUnlocked, settings?.security.lockTimeout]);
 
   const handleSaveNode = async (updatedNode: Node) => {
     const newNodes = updateNodeInTree(nodes, updatedNode.id, () => updatedNode);

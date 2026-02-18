@@ -168,6 +168,62 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="autolock" className="text-base font-semibold">
+                                Auto-lock Vault
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Automatically lock the vault after a period of inactivity.
+                            </p>
+                        </div>
+                        <Switch
+                            id="autolock"
+                            checked={settings.security.lockTimeout > 0}
+                            onCheckedChange={(checked) => {
+                                onSettingsUpdate({
+                                    ...settings,
+                                    security: {
+                                        ...settings.security,
+                                        lockTimeout: checked ? 300000 : 0
+                                    }
+                                });
+                            }}
+                        />
+                    </div>
+
+                    {settings.security.lockTimeout > 0 && (
+                        <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50 animate-fade-in">
+                            <Label htmlFor="timeout" className="text-sm font-semibold">
+                                Lock Timeout (minutes)
+                            </Label>
+                            <div className="flex items-center gap-4">
+                                <input
+                                    type="range"
+                                    id="timeout-slider"
+                                    min="1"
+                                    max="60"
+                                    step="1"
+                                    className="flex-1 h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                                    value={settings.security.lockTimeout / 60000}
+                                    onChange={(e) => {
+                                        const minutes = parseInt(e.target.value);
+                                        onSettingsUpdate({
+                                            ...settings,
+                                            security: {
+                                                ...settings.security,
+                                                lockTimeout: minutes * 60000
+                                            }
+                                        });
+                                    }}
+                                />
+                                <span className="font-mono text-sm w-16 text-right">
+                                    {Math.floor(settings.security.lockTimeout / 60000)} min
+                                </span>
+                            </div>
+                        </div>
+                    )}
                     <div className="flex flex-col gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-1">
                             <div className="flex items-center gap-2">

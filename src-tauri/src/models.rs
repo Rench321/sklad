@@ -48,7 +48,7 @@ pub struct AppSettingsSecurity {
 impl Default for AppSettingsSecurity {
     fn default() -> Self {
         Self {
-            lock_timeout: 0,
+            lock_timeout: 300000, // 5 minutes default
             clear_clipboard: false,
             master_password_enabled: false, // No password set yet on fresh install
             password_hash: None,
