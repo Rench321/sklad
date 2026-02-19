@@ -22,6 +22,7 @@ export interface AppSettings {
         lockTimeout: number;
         clearClipboard: boolean;
         masterPasswordEnabled: boolean;
+        forceSave: boolean;
     };
     notificationsEnabled: boolean;
     launchAtStartup: boolean;

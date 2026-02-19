@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from "react";
 import { Node } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,21 +9,27 @@ import { Save, Copy, Lock, Unlock, FileText, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+export interface SnippetEditorRef {
+    isDirty: () => boolean;
+    save: () => Promise<void>;
+    reset: () => void;
+}
+
 interface SnippetEditorProps {
     node: Node;
-    onSave: (updatedNode: Node) => void;
+    onSave: (updatedNode: Node) => Promise<void> | void;
     onUnlockTrigger?: () => void;
     masterPasswordEnabled?: boolean;
     isUnlocked?: boolean;
 }
 
-export function SnippetEditor({
+export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
     node,
     onSave,
     onUnlockTrigger,
     masterPasswordEnabled = true,
     isUnlocked = false
-}: SnippetEditorProps) {
+}, ref) => {
     const [label, setLabel] = useState(node.label);
     const [value, setValue] = useState(node.value || "");
     const [isSecret, setIsSecret] = useState(node.isSecret || false);
@@ -45,6 +51,8 @@ export function SnippetEditor({
         value !== savedState.current.value ||
         isSecret !== savedState.current.isSecret;
 
+
+
     const handleSave = useCallback(async () => {
         if (isSecret && (!masterPasswordEnabled || !isUnlocked)) return;
 
@@ -56,10 +64,30 @@ export function SnippetEditor({
             value: value
         };
 
-        onSave(updatedNode);
+        await onSave(updatedNode);
         savedState.current = { label, value, isSecret };
         setTimeout(() => setIsSaving(false), 500);
     }, [node, label, value, isSecret, masterPasswordEnabled, isUnlocked, onSave]);
+
+    useImperativeHandle(ref, () => ({
+        isDirty: () => {
+            return label !== savedState.current.label ||
+                value !== savedState.current.value ||
+                isSecret !== savedState.current.isSecret;
+        },
+        save: async () => {
+            if (label !== savedState.current.label ||
+                value !== savedState.current.value ||
+                isSecret !== savedState.current.isSecret) {
+                await handleSave();
+            }
+        },
+        reset: () => {
+            setLabel(savedState.current.label);
+            setValue(savedState.current.value);
+            setIsSecret(savedState.current.isSecret);
+        }
+    }), [label, value, isSecret, handleSave]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -235,4 +263,4 @@ export function SnippetEditor({
             </div>
         </div>
     );
-}
+});

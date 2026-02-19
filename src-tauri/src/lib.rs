@@ -21,12 +21,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
-                api.prevent_close();
-            }
-        })
+        // on_window_event removed to allow frontend to handle CloseRequested
+
         .setup(|app| {
             let handle = app.handle();
             let data_manager = DataManager::new(handle);

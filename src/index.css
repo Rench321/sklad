@@ -141,7 +141,7 @@
 
   /* Destructive */
   --destructive: hsl(0 60% 40%);
-  --destructive-foreground: hsl(0 80% 65%);
+  --destructive-foreground: hsl(0 0% 100%);
 
   /* Borders */
   --border: hsl(30 8% 22%);

@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Sidebar } from "@/components/Sidebar";
-import { SnippetEditor } from "@/components/SnippetEditor";
+import { SnippetEditor, SnippetEditorRef } from "@/components/SnippetEditor";
 import { VaultLock } from "@/components/VaultLock";
 import { CommandPalette } from "@/components/CommandPalette";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useRef } from "react";
 import { Settings } from "@/components/Settings";
+import { UnsavedChangesModal } from "@/components/UnsavedChangesModal";
 import { api } from "@/lib/api";
 import {
   findNodeById,
@@ -34,6 +36,11 @@ function App() {
     id: string;
     autoHide: boolean;
   } | null>(null);
+
+  const snippetEditorRef = useRef<SnippetEditorRef>(null);
+  const [pendingNodeSelection, setPendingNodeSelection] = useState<Node | null>(null);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
 
   useEffect(() => {
     initializeApp();
@@ -214,6 +221,88 @@ function App() {
     await api.saveData(newNodes);
   };
 
+
+
+  const handleNodeSelect = async (node: Node) => {
+    if (selectedNode?.id === node.id) return;
+
+    // Check if current snippet is dirty
+    if (selectedNode?.type === 'snippet' && snippetEditorRef.current?.isDirty()) {
+      if (settings?.security.forceSave) {
+        await snippetEditorRef.current.save();
+        setSelectedNode(node);
+      } else {
+        setPendingNodeSelection(node);
+        setShowUnsavedModal(true);
+      }
+    } else {
+      setSelectedNode(node);
+    }
+  };
+
+  const handleUnsavedSave = async () => {
+    if (snippetEditorRef.current) {
+      await snippetEditorRef.current.save();
+    }
+    setShowUnsavedModal(false);
+    if (pendingClose) {
+      const window = getCurrentWebviewWindow();
+      await window.hide();
+      setPendingClose(false);
+    } else if (pendingNodeSelection) {
+      setSelectedNode(pendingNodeSelection);
+      setPendingNodeSelection(null);
+    }
+  };
+
+  const handleUnsavedDiscard = async () => {
+    setShowUnsavedModal(false);
+
+    if (snippetEditorRef.current) {
+      snippetEditorRef.current.reset();
+    }
+
+    if (pendingClose) {
+      const window = getCurrentWebviewWindow();
+      await window.hide();
+      setPendingClose(false);
+    } else if (pendingNodeSelection) {
+      setSelectedNode(pendingNodeSelection);
+      setPendingNodeSelection(null);
+    }
+  };
+
+  const handleUnsavedCancel = () => {
+    setShowUnsavedModal(false);
+    setPendingNodeSelection(null);
+    setPendingClose(false);
+  };
+
+  useEffect(() => {
+    const unlistenPromise = getCurrentWebviewWindow().onCloseRequested(async (event) => {
+      // Always prevent default close to handle it manually (hide instead of quit)
+      event.preventDefault();
+
+      if (selectedNode?.type === 'snippet' && snippetEditorRef.current?.isDirty()) {
+        if (settings?.security.forceSave) {
+          await snippetEditorRef.current.save();
+          const window = getCurrentWebviewWindow();
+          await window.hide();
+        } else {
+          setPendingClose(true);
+          setShowUnsavedModal(true);
+        }
+      } else {
+        // If no changes or not editing a snippet, just hide
+        const window = getCurrentWebviewWindow();
+        await window.hide();
+      }
+    });
+
+    return () => {
+      unlistenPromise.then(unlisten => unlisten());
+    };
+  }, [selectedNode, settings]);
   if (!loaded || !settings) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -228,10 +317,10 @@ function App() {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-industrial text-foreground">
-      <CommandPalette nodes={nodes} onSelect={setSelectedNode} />
+      <CommandPalette nodes={nodes} onSelect={handleNodeSelect} />
       <Sidebar
         nodes={nodes}
-        onSelectNode={setSelectedNode}
+        onSelectNode={handleNodeSelect}
         selectedNodeId={selectedNode?.id}
         onAddNode={handleAddNode}
         onDeleteNode={handleDeleteNode}
@@ -303,6 +392,7 @@ function App() {
             />
           ) : selectedNode ? (
             <SnippetEditor
+              ref={snippetEditorRef}
               node={selectedNode}
               key={selectedNode.id}
               onSave={handleSaveNode}
@@ -372,6 +462,13 @@ function App() {
           }}
         />
       )}
+
+      <UnsavedChangesModal
+        open={showUnsavedModal}
+        onSave={handleUnsavedSave}
+        onDiscard={handleUnsavedDiscard}
+        onCancel={handleUnsavedCancel}
+      />
     </div>
   );
 }
