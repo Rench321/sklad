@@ -65,6 +65,8 @@ pub struct AppSettings {
     pub notifications_enabled: bool,
     #[serde(rename = "launchAtStartup", default)]
     pub launch_at_startup: bool,
+    #[serde(rename = "autoSave", default)]
+    pub auto_save: bool,
 }
 
 impl Default for AppSettings {
@@ -74,6 +76,7 @@ impl Default for AppSettings {
             security: AppSettingsSecurity::default(),
             notifications_enabled: true,
             launch_at_startup: false,
+            auto_save: false,
         }
     }
 }

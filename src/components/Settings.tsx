@@ -120,6 +120,26 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                 <CardContent className="space-y-4">
                     <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
+                            <Label htmlFor="autosave" className="text-base font-semibold">
+                                Autosave snippets
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Automatically save changes to snippets as you type (like VSCode).
+                            </p>
+                        </div>
+                        <Switch
+                            id="autosave"
+                            checked={settings.autoSave}
+                            onCheckedChange={(checked) => {
+                                onSettingsUpdate({
+                                    ...settings,
+                                    autoSave: checked
+                                });
+                            }}
+                        />
+                    </div>
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
                             <Label htmlFor="autostart" className="text-base font-semibold flex items-center gap-2">
                                 <Power className="w-4 h-4" />
                                 Launch at Startup
@@ -150,29 +170,6 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                 onSettingsUpdate({
                                     ...settings,
                                     notificationsEnabled: checked
-                                });
-                            }}
-                        />
-                    </div>
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
-                        <div className="space-y-0.5">
-                            <Label htmlFor="forcesave" className="text-base font-semibold">
-                                Force Save on Switch/Close
-                            </Label>
-                            <p className="text-sm text-muted-foreground">
-                                Automatically save changes when switching snippets or closing the app.
-                            </p>
-                        </div>
-                        <Switch
-                            id="forcesave"
-                            checked={settings.security.forceSave}
-                            onCheckedChange={(checked) => {
-                                onSettingsUpdate({
-                                    ...settings,
-                                    security: {
-                                        ...settings.security,
-                                        forceSave: checked
-                                    }
                                 });
                             }}
                         />

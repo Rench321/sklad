@@ -21,6 +21,7 @@ interface SnippetEditorProps {
     onUnlockTrigger?: () => void;
     masterPasswordEnabled?: boolean;
     isUnlocked?: boolean;
+    autoSave?: boolean;
 }
 
 export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
@@ -28,7 +29,8 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
     onSave,
     onUnlockTrigger,
     masterPasswordEnabled = true,
-    isUnlocked = false
+    isUnlocked = false,
+    autoSave = false
 }, ref) => {
     const [label, setLabel] = useState(node.label);
     const [value, setValue] = useState(node.value || "");
@@ -51,8 +53,6 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
         value !== savedState.current.value ||
         isSecret !== savedState.current.isSecret;
 
-
-
     const handleSave = useCallback(async () => {
         if (isSecret && (!masterPasswordEnabled || !isUnlocked)) return;
 
@@ -68,6 +68,14 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
         savedState.current = { label, value, isSecret };
         setTimeout(() => setIsSaving(false), 500);
     }, [node, label, value, isSecret, masterPasswordEnabled, isUnlocked, onSave]);
+
+    // Handle autosave
+    useEffect(() => {
+        if (autoSave && isDirty && !isSaving) {
+            handleSave();
+        }
+    }, [label, value, isSecret, autoSave, isDirty, isSaving, handleSave]);
+
 
     useImperativeHandle(ref, () => ({
         isDirty: () => {

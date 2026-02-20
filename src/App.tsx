@@ -228,7 +228,7 @@ function App() {
 
     // Check if current snippet is dirty
     if (selectedNode?.type === 'snippet' && snippetEditorRef.current?.isDirty()) {
-      if (settings?.security.forceSave) {
+      if (settings?.autoSave) {
         await snippetEditorRef.current.save();
         setSelectedNode(node);
       } else {
@@ -284,7 +284,7 @@ function App() {
       event.preventDefault();
 
       if (selectedNode?.type === 'snippet' && snippetEditorRef.current?.isDirty()) {
-        if (settings?.security.forceSave) {
+        if (settings?.autoSave) {
           await snippetEditorRef.current.save();
           const window = getCurrentWebviewWindow();
           await window.hide();
@@ -399,6 +399,7 @@ function App() {
               masterPasswordEnabled={settings.security.masterPasswordEnabled}
               isUnlocked={isUnlocked}
               onUnlockTrigger={() => setShowLockModal(true)}
+              autoSave={settings.autoSave}
             />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-4">
