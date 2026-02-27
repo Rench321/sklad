@@ -10,8 +10,11 @@ import "@fontsource/inter/700.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { SearchWindow } from "./SearchWindow";
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    {getCurrentWebviewWindow().label === "search" ? <SearchWindow /> : <App />}
   </React.StrictMode>,
 );

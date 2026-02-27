@@ -26,4 +26,5 @@ export interface AppSettings {
     notificationsEnabled: boolean;
     launchAtStartup: boolean;
     autoSave: boolean;
+    globalSearchShortcut: string;
 }

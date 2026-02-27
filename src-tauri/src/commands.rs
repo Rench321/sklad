@@ -222,6 +222,21 @@ pub fn save_settings(
         *vault_manager.state.lock().unwrap() = VaultState::Locked;
     }
 
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let _ = app.global_shortcut().unregister_all();
+    if !settings.global_search_shortcut.is_empty() {
+        match settings.global_search_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            Ok(shortcut) => {
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    eprintln!("Failed to register shortcut: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to parse shortcut string '{}': {}", settings.global_search_shortcut, e);
+            }
+        }
+    }
+
     DataManager::new(&app)
         .save_settings(&settings)
         .map_err(|e| e.to_string())

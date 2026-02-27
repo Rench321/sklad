@@ -13,10 +13,21 @@
     "windows": [
       {
         "title": "Sklad",
+        "label": "main",
         "width": 800,
         "height": 600,
         "dragDropEnabled": false,
         "visible": false
+      },
+      {
+        "title": "Search",
+        "label": "search",
+        "width": 600,
+        "height": 400,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "center": true
       }
     ],
     "security": {

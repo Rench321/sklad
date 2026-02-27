@@ -28,6 +28,23 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    eprintln!("Shortcut handler fired for {:?} with state {:?}", shortcut, event.state);
+                    if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        eprintln!("Global shortcut pressed!");
+                        if let Some(window) = app.get_webview_window("search") {
+                            eprintln!("Found search window, showing it...");
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        } else {
+                            eprintln!("Could not find search window!");
+                        }
+                    }
+                })
+                .build(),
+        )
         // on_window_event removed to allow frontend to handle CloseRequested
 
         .setup(|app| {
@@ -76,6 +93,23 @@ pub fn run() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
+                }
+            }
+
+            // Register global shortcut
+            let settings = data_manager.load_settings();
+            let shortcut_str = &settings.global_search_shortcut;
+            if !shortcut_str.is_empty() {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                match shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    Ok(shortcut) => {
+                        if let Err(e) = app.global_shortcut().register(shortcut) {
+                            eprintln!("Failed to register shortcut on startup: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse shortcut string '{}' on startup: {}", shortcut_str, e);
+                    }
                 }
             }
 

@@ -3,7 +3,8 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main"
+    "main",
+    "search"
   ],
   "permissions": [
     "core:default",
@@ -14,6 +15,7 @@
     "clipboard-manager:default",
     "store:default",
     "autostart:default",
-    "core:app:default"
+    "core:app:default",
+    "global-shortcut:default"
   ]
 }

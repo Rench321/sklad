@@ -67,6 +67,8 @@ pub struct AppSettings {
     pub launch_at_startup: bool,
     #[serde(rename = "autoSave", default)]
     pub auto_save: bool,
+    #[serde(rename = "globalSearchShortcut", default)]
+    pub global_search_shortcut: String,
 }
 
 impl Default for AppSettings {
@@ -77,6 +79,7 @@ impl Default for AppSettings {
             notifications_enabled: true,
             launch_at_startup: false,
             auto_save: false,
+            global_search_shortcut: "".to_string(),
         }
     }
 }

@@ -174,6 +174,66 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             }}
                         />
                     </div>
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="global-shortcut" className="text-base font-semibold">
+                                Global Search Shortcut
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Open Sklad search from anywhere.
+                            </p>
+                        </div>
+                        <input
+                            id="global-shortcut"
+                            className="w-48 px-3 py-1.5 text-sm bg-background/50 border border-border/50 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary/50 transition-all placeholder:text-muted-foreground/30 text-center"
+                            placeholder="Press keys to set..."
+                            value={settings.globalSearchShortcut || ""}
+                            readOnly
+                            onKeyDown={(e) => {
+                                e.preventDefault();
+
+                                // Handling clear
+                                if (e.key === "Backspace" || e.key === "Delete") {
+                                    onSettingsUpdate({ ...settings, globalSearchShortcut: "" });
+                                    return;
+                                }
+
+                                // Ignore standalone modifier keys
+                                if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) {
+                                    return;
+                                }
+
+                                const keys: string[] = [];
+
+                                // Tauri global shortcut format support:
+                                // "CommandOrControl", "Alt", "Shift", "Super" AND the upper case letter or exact key representation.
+
+                                // On macOS, metaKey is Command. On Windows/Linux, ctrlKey is Control.
+                                // Tauri supports "Cmd" or "Command"
+                                if (e.metaKey) keys.push("Cmd");
+                                if (e.ctrlKey) keys.push("Ctrl");
+                                if (e.altKey) keys.push("Alt");
+                                if (e.shiftKey) keys.push("Shift");
+
+                                // Map keys to Tauri's expectations. Usually it's just upper case single letters or digit.
+                                let keyName = e.key;
+                                if (e.code.startsWith("Key")) {
+                                    keyName = e.code.replace("Key", ""); // e.g. "KeyF" -> "F"
+                                } else if (e.code.startsWith("Digit")) {
+                                    keyName = e.code.replace("Digit", "");
+                                } else if (keyName === " ") {
+                                    keyName = "Space";
+                                } else {
+                                    keyName = keyName.charAt(0).toUpperCase() + keyName.slice(1);
+                                }
+
+                                keys.push(keyName);
+
+                                const shortcut = keys.join("+");
+                                onSettingsUpdate({ ...settings, globalSearchShortcut: shortcut });
+                            }}
+                        />
+                    </div>
                 </CardContent>
             </Card>
 
