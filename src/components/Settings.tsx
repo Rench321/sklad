@@ -125,13 +125,13 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="autosave" className="text-base font-semibold">
                                 Autosave snippets
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                                Automatically save changes to snippets as you type (like VSCode).
+                                Automatically save changes to snippets as you type. If turned off, Sklad will prompt you to Save or Discard changes.
                             </p>
                         </div>
                         <Switch
@@ -145,7 +145,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             }}
                         />
                     </div>
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="autostart" className="text-base font-semibold flex items-center gap-2">
                                 <Power className="w-4 h-4" />
@@ -161,7 +161,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             onCheckedChange={handleAutoStartChange}
                         />
                     </div>
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="notifications" className="text-base font-semibold">
                                 Tray Copy Notifications
@@ -312,7 +312,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                 </CardHeader>
                 <CardContent className="space-y-6">
 
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="autolock" className="text-base font-semibold">
                                 Auto-lock Vault
