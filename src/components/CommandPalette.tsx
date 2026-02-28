@@ -73,6 +73,7 @@ export function CommandPalette({ nodes, onSelect }: CommandPaletteProps) {
                                     onSelect(node);
                                     setOpen(false);
                                 }}
+                                value={`${node.label} ${node.path.join(" ")} ${!node.isSecret && node.value ? node.value : ""}`}
                                 className="px-3 py-2 rounded-lg cursor-pointer"
                             >
                                 <FileText className={cn(
@@ -102,6 +103,7 @@ export function CommandPalette({ nodes, onSelect }: CommandPaletteProps) {
                                     onSelect(node);
                                     setOpen(false);
                                 }}
+                                value={`${node.label} ${node.path.join(" ")}`}
                                 className="px-3 py-2 rounded-lg cursor-pointer"
                             >
                                 <Folder className="mr-3 h-4 w-4 text-primary/70" />

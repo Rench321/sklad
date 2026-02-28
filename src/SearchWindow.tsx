@@ -116,7 +116,7 @@ export function SearchWindow() {
                                 <CommandItem
                                     key={node.id}
                                     onSelect={() => handleSelect(node)}
-                                    value={node.label + " " + node.path.join(" ")}
+                                    value={`${node.label} ${node.path.join(" ")} ${!node.isSecret && node.value ? node.value : ""}`}
                                     className="px-4 py-3 rounded-lg cursor-pointer mb-1 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground"
                                 >
                                     <FileText className={cn(
