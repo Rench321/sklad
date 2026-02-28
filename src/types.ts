@@ -27,4 +27,5 @@ export interface AppSettings {
     launchAtStartup: boolean;
     autoSave: boolean;
     globalSearchShortcut: string;
+    trayClickAction?: 'copy_last' | 'open_app';
 }

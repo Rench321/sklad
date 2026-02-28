@@ -8,6 +8,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface SettingsProps {
     settings: AppSettings;
@@ -174,7 +181,34 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             }}
                         />
                     </div>
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="tray-click-action" className="text-base font-semibold">
+                                Tray Left Click Action
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                What happens when you single click the Sklad icon in your system tray.
+                            </p>
+                        </div>
+                        <Select
+                            value={settings.trayClickAction || 'copy_last'}
+                            onValueChange={(value: 'copy_last' | 'open_app') => {
+                                onSettingsUpdate({
+                                    ...settings,
+                                    trayClickAction: value
+                                });
+                            }}
+                        >
+                            <SelectTrigger className="w-48 bg-background/50 border-border/50 h-9">
+                                <SelectValue placeholder="Select action..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="copy_last">Copy Last Used</SelectItem>
+                                <SelectItem value="open_app">Open Sklad</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
                             <Label htmlFor="global-shortcut" className="text-base font-semibold">
                                 Global Search Shortcut

@@ -43,7 +43,6 @@ pub fn run() {
                 .build(),
         )
         // on_window_event removed to allow frontend to handle CloseRequested
-
         .setup(|app| {
             let handle = app.handle();
             let data_manager = DataManager::new(handle);
@@ -70,11 +69,20 @@ pub fn run() {
                     } = event
                     {
                         let app = tray.app_handle();
-                        let vault_manager = app.state::<crate::security::VaultManager>();
-                        let last_id = vault_manager.last_used_id.lock().unwrap().clone();
 
-                        if let Some(id) = last_id {
-                            handle_snippet_click(app, id);
+                        let data_manager = DataManager::new(app);
+                        let settings = data_manager.load_settings();
+
+                        if settings.tray_click_action == "open_app" {
+                            show_main_window(app);
+                        } else {
+                            // "copy_last" is the default fallback
+                            let vault_manager = app.state::<crate::security::VaultManager>();
+                            let last_id = vault_manager.last_used_id.lock().unwrap().clone();
+
+                            if let Some(id) = last_id {
+                                handle_snippet_click(app, id);
+                            }
                         }
                     }
                 })
@@ -105,7 +113,10 @@ pub fn run() {
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to parse shortcut string '{}' on startup: {}", shortcut_str, e);
+                        eprintln!(
+                            "Failed to parse shortcut string '{}' on startup: {}",
+                            shortcut_str, e
+                        );
                     }
                 }
             }
@@ -155,4 +166,3 @@ fn handle_snippet_click(app: &tauri::AppHandle, id: String) {
         }
     }
 }
-
