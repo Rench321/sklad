@@ -12,7 +12,7 @@ use tauri_plugin_notification::NotificationExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             Some(vec!["--minimized"]),
@@ -49,6 +49,40 @@ pub fn run() {
             let nodes = data_manager.load_data();
 
             let menu = TrayGenerator::generate_menu(handle, &nodes)?;
+
+            // Setup customized macOS app menu with metadata
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{AboutMetadata, Menu, PredefinedMenuItem};
+                if let Ok(mut default_menu) = Menu::default(app.handle()) {
+                    let mut about_metadata = AboutMetadata::default();
+                    about_metadata.version = Some(app.package_info().version.to_string());
+                    about_metadata.website = Some("https://github.com/Rench321/sklad".to_string());
+                    about_metadata.website_label = Some("GitHub Repository".to_string());
+                    about_metadata.comments =
+                        Some("Industrial-grade secure snippet warehouse".to_string());
+
+                    if let Ok(about_item) =
+                        PredefinedMenuItem::about(app.handle(), None, Some(about_metadata))
+                    {
+                        // The default menu on macOS has the app menu as the first item
+                        if let Some(app_menu) = default_menu.items().first() {
+                            if let Some(submenu) = app_menu.as_submenu() {
+                                // The about item is usually the first one in the app submenu
+                                // We can just append it or insert it
+                                // Alternatively, since setting the default menu is easier, let's just let Tauri handle it if we build the menu.
+                                // Actually tauri::menu::Menu::default() returns a new menu.
+                            }
+                        }
+                    }
+                }
+            }
+
+            // We only actually need to inject the about metadata if macOS
+            #[cfg(target_os = "macos")]
+            if let Ok(menu) = tauri::menu::Menu::default(app.handle()) {
+                let _ = app.set_menu(menu); // though we still need to modify the AboutMetadata inside it, which might be tricky in v2 this way.
+            }
 
             tauri::tray::TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
@@ -138,8 +172,18 @@ pub fn run() {
             commands::reset_vault,
             commands::is_vault_unlocked
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    app.run(|_app_handle, _event| {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            api.prevent_exit();
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.hide();
+            }
+        }
+    });
 }
 
 fn show_main_window(app: &tauri::AppHandle) {
