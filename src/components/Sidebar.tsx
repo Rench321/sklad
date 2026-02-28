@@ -222,12 +222,12 @@ const TreeNode = ({ node, level, onSelect, selectedId, onAddNode, onDeleteNode, 
 
                 {node.type === "folder" ? (
                     <Folder className={cn(
-                        "w-4 h-4 mr-2 transition-colors flex-shrink-0",
+                        "w-4 h-4 mr-2 transition-colors shrink-0",
                         isSelected || isDragOver ? "text-primary" : "text-primary/60"
                     )} />
                 ) : (
                     <FileText className={cn(
-                        "w-4 h-4 mr-2 transition-colors flex-shrink-0",
+                        "w-4 h-4 mr-2 transition-colors shrink-0",
                         isSelected ? "text-foreground" : "text-muted-foreground"
                     )} />
                 )}
@@ -250,13 +250,13 @@ const TreeNode = ({ node, level, onSelect, selectedId, onAddNode, onDeleteNode, 
                 )}
 
                 {node.isSecret && !isEditing && (
-                    <Lock className="w-3 h-3 ml-1 text-yellow-500/80 flex-shrink-0" />
+                    <Lock className="w-3 h-3 ml-1 text-yellow-500/80 shrink-0" />
                 )}
 
                 {/* Action buttons on hover */}
                 {!isEditing && (
                     <div className={cn(
-                        "flex items-center gap-0.5 ml-1 transition-opacity duration-200 flex-shrink-0",
+                        "flex items-center gap-0.5 ml-1 transition-opacity duration-200 shrink-0",
                         isHovered ? "opacity-100" : "opacity-0"
                     )} onClick={(e) => e.stopPropagation()}>
                         <Button

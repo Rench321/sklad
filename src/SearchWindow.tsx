@@ -15,6 +15,8 @@ import { api } from "@/lib/api";
 
 export function SearchWindow() {
     const [nodes, setNodes] = React.useState<Node[]>([]);
+    const [searchValue, setSearchValue] = React.useState("");
+    const inputRef = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
         const loadNodes = async () => {
@@ -30,6 +32,12 @@ export function SearchWindow() {
         const unlistenFocus = window.onFocusChanged(({ payload: focused }) => {
             if (!focused) {
                 window.hide();
+            } else {
+                setSearchValue("");
+                // Small delay to ensure the window is fully visible before focusing
+                setTimeout(() => {
+                    inputRef.current?.focus();
+                }, 50);
             }
         });
 
@@ -69,15 +77,11 @@ export function SearchWindow() {
         } catch (e: any) {
             console.error("Failed to copy", e);
             if (e === "Vault is Locked") {
-                // To unlock vault, user needs the main window open.
-                // Or we can emit request-unlock to main window and focus it.
-                // Simple approach: show main window and hide this one.
                 const mainWindow = await (await import("@tauri-apps/api/webviewWindow")).WebviewWindow.getByLabel("main");
                 if (mainWindow) {
                     await mainWindow.show();
                     await mainWindow.setFocus();
-                    // trigger copy on main window side
-                    await api.copySnippet(node.id).catch(() => { });
+                    await mainWindow.emit("request-unlock", node.id);
                 }
                 await getCurrentWebviewWindow().hide();
             }
@@ -90,6 +94,9 @@ export function SearchWindow() {
                 <div className="flex items-center px-4 border-b border-border/50">
                     <Search className="w-5 h-5 text-muted-foreground mr-3" />
                     <CommandInput
+                        ref={inputRef}
+                        value={searchValue}
+                        onValueChange={setSearchValue}
                         placeholder="Search snippets..."
                         className="h-14 border-0 focus:ring-0 text-lg flex-1 bg-transparent outline-none"
                         autoFocus

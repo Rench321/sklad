@@ -10,6 +10,7 @@
     "core:default",
     "core:window:allow-hide",
     "core:window:allow-show",
+    "core:window:allow-set-focus",
     "opener:default",
     "notification:default",
     "clipboard-manager:default",

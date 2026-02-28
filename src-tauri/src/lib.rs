@@ -30,12 +30,9 @@ pub fn run() {
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, shortcut, event| {
-                    eprintln!("Shortcut handler fired for {:?} with state {:?}", shortcut, event.state);
+                .with_handler(|app, _shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        eprintln!("Global shortcut pressed!");
                         if let Some(window) = app.get_webview_window("search") {
-                            eprintln!("Found search window, showing it...");
                             let _ = window.show();
                             let _ = window.set_focus();
                         } else {
