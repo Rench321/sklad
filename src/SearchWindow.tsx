@@ -34,6 +34,8 @@ export function SearchWindow() {
                 window.hide();
             } else {
                 setSearchValue("");
+                // Reload nodes so global search always has the latest changes
+                api.getData().then(data => setNodes(data || []));
                 // Small delay to ensure the window is fully visible before focusing
                 setTimeout(() => {
                     inputRef.current?.focus();
