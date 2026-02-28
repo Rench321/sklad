@@ -180,7 +180,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                 Global Search Shortcut
                             </Label>
                             <p className="text-sm text-muted-foreground">
-                                Open Sklad search from anywhere.
+                                Open Sklad search from anywhere. Press Backspace to clear.
                             </p>
                         </div>
                         <input
@@ -195,6 +195,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                 // Handling clear
                                 if (e.key === "Backspace" || e.key === "Delete") {
                                     onSettingsUpdate({ ...settings, globalSearchShortcut: "" });
+                                    e.currentTarget.blur();
                                     return;
                                 }
 
@@ -231,6 +232,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
 
                                 const shortcut = keys.join("+");
                                 onSettingsUpdate({ ...settings, globalSearchShortcut: shortcut });
+                                e.currentTarget.blur();
                             }}
                         />
                     </div>

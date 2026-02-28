@@ -119,7 +119,7 @@ export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 
 
                         {error && (
                             <div className="flex items-center gap-2 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2 animate-fade-in">
-                                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                <AlertCircle className="w-4 h-4 shrink-0" />
                                 <span>{error}</span>
                             </div>
                         )}
@@ -219,7 +219,7 @@ export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 
 
             {/* Version indicator */}
             <div className="absolute bottom-4 text-xs text-muted-foreground/40 font-mono">
-                SKLAD v1.0
+                SKLAD v0.2.0
             </div>
         </div>
     );
