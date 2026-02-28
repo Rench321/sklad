@@ -89,8 +89,10 @@ fn encrypt_nodes_recursive(nodes: &mut [Node], key: &Key) -> Result<(), String> 
             if let Some(plain_text) = &node.value {
                 if !plain_text.is_empty() {
                     let (ciphertext, nonce) = security::encrypt(plain_text, key)?;
-                    node.encrypted_value =
-                        Some(format!("{}{}{}", nonce, ENCRYPTED_VALUE_SEPARATOR, ciphertext));
+                    node.encrypted_value = Some(format!(
+                        "{}{}{}",
+                        nonce, ENCRYPTED_VALUE_SEPARATOR, ciphertext
+                    ));
                     node.value = None;
                 }
             }
@@ -151,8 +153,8 @@ pub fn save_data(
     let data_manager = DataManager::new(&app);
     data_manager.save_data(&nodes).map_err(|e| e.to_string())?;
 
-    let menu =
-        crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes).map_err(|e| e.to_string())?;
+    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes)
+        .map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_menu(Some(menu));
     }
@@ -225,31 +227,53 @@ pub fn save_settings(
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
     let _ = app.global_shortcut().unregister_all();
     if !settings.global_search_shortcut.is_empty() {
-        match settings.global_search_shortcut.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+        match settings
+            .global_search_shortcut
+            .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        {
             Ok(shortcut) => {
                 if let Err(e) = app.global_shortcut().register(shortcut) {
                     eprintln!("Failed to register shortcut: {}", e);
                 }
             }
             Err(e) => {
-                eprintln!("Failed to parse shortcut string '{}': {}", settings.global_search_shortcut, e);
+                eprintln!(
+                    "Failed to parse shortcut string '{}': {}",
+                    settings.global_search_shortcut, e
+                );
             }
         }
     }
 
-    DataManager::new(&app)
+    let data_manager = DataManager::new(&app);
+    data_manager
         .save_settings(&settings)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let nodes = data_manager.load_data();
+    if let Ok(menu) = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes) {
+        if let Some(tray) = app.tray_by_id("main") {
+            let _ = tray.set_menu(Some(menu));
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
 pub fn is_vault_unlocked(vault_manager: State<'_, VaultManager>) -> bool {
-    matches!(*vault_manager.state.lock().unwrap(), VaultState::Unlocked(_))
+    matches!(
+        *vault_manager.state.lock().unwrap(),
+        VaultState::Unlocked(_)
+    )
 }
 
 #[tauri::command]
 pub fn get_snippets_path(app: AppHandle) -> String {
-    DataManager::new(&app).file_path.to_string_lossy().to_string()
+    DataManager::new(&app)
+        .file_path
+        .to_string_lossy()
+        .to_string()
 }
 
 #[tauri::command]
@@ -286,4 +310,3 @@ fn remove_secrets_recursive(nodes: &mut Vec<Node>) {
         }
     }
 }
-

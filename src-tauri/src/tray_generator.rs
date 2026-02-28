@@ -4,20 +4,27 @@ use tauri::{
     AppHandle, Runtime,
 };
 
+use crate::data_manager::DataManager;
+
 pub struct TrayGenerator;
 
 impl TrayGenerator {
     pub fn generate_menu<R: Runtime>(app: &AppHandle<R>, nodes: &[Node]) -> tauri::Result<Menu<R>> {
         let mut menu_builder = MenuBuilder::new(app);
 
-        // Add a Quit item at the top
+        let data_manager = DataManager::new(app);
+        let settings = data_manager.load_settings();
+
+        let is_top = settings.tray_menu_root_position == "top";
+
         let quit_item = MenuItemBuilder::new("Quit Sklad").id("quit").build(app)?;
-        menu_builder = menu_builder.item(&quit_item);
-        
         let open_item = MenuItemBuilder::new("Open Sklad").id("open").build(app)?;
-        menu_builder = menu_builder.item(&open_item);
-        
-        menu_builder = menu_builder.separator();
+
+        if is_top {
+            menu_builder = menu_builder.item(&quit_item);
+            menu_builder = menu_builder.item(&open_item);
+            menu_builder = menu_builder.separator();
+        }
 
         for node in nodes {
             match node.node_type {
@@ -31,18 +38,25 @@ impl TrayGenerator {
                     } else {
                         node.label.clone()
                     };
-                    let item = MenuItemBuilder::new(text)
-                        .id(&node.id)
-                        .build(app)?;
+                    let item = MenuItemBuilder::new(text).id(&node.id).build(app)?;
                     menu_builder = menu_builder.item(&item);
                 }
             }
         }
 
+        if !is_top {
+            menu_builder = menu_builder.separator();
+            menu_builder = menu_builder.item(&open_item);
+            menu_builder = menu_builder.item(&quit_item);
+        }
+
         menu_builder.build()
     }
 
-    fn generate_submenu<R: Runtime>(app: &AppHandle<R>, node: &Node) -> tauri::Result<tauri::menu::Submenu<R>> {
+    fn generate_submenu<R: Runtime>(
+        app: &AppHandle<R>,
+        node: &Node,
+    ) -> tauri::Result<tauri::menu::Submenu<R>> {
         let mut submenu_builder = SubmenuBuilder::new(app, &node.label);
 
         if let Some(children) = &node.children {
@@ -58,9 +72,7 @@ impl TrayGenerator {
                         } else {
                             child.label.clone()
                         };
-                        let item = MenuItemBuilder::new(text)
-                            .id(&child.id)
-                            .build(app)?;
+                        let item = MenuItemBuilder::new(text).id(&child.id).build(app)?;
                         submenu_builder = submenu_builder.item(&item);
                     }
                 }

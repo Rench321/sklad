@@ -210,6 +210,33 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                     </div>
                     <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
+                            <Label htmlFor="tray-menu-root-position" className="text-base font-semibold">
+                                Tray Menu Open/Quit Position
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Choose whether the Open and Quit buttons appear at the top or bottom of the menu.
+                            </p>
+                        </div>
+                        <Select
+                            value={settings.trayMenuRootPosition || 'bottom'}
+                            onValueChange={(value: 'top' | 'bottom') => {
+                                onSettingsUpdate({
+                                    ...settings,
+                                    trayMenuRootPosition: value
+                                });
+                            }}
+                        >
+                            <SelectTrigger className="w-48 bg-background/50 border-border/50 h-9">
+                                <SelectValue placeholder="Select position..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="top">Top</SelectItem>
+                                <SelectItem value="bottom">Bottom</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
                             <Label htmlFor="global-shortcut" className="text-base font-semibold">
                                 Global Search Shortcut
                             </Label>
