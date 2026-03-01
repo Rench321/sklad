@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { AppSettings } from "@/types";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell, Power } from "lucide-react";
+import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell, Power, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
     Select,
     SelectContent,
@@ -70,11 +71,28 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                         <p className="text-muted-foreground">Configure your industrial snippet storage.</p>
                     </div>
                 </div>
-                {appVersion && (
-                    <div className="px-3 py-1 rounded-full bg-muted/50 border border-border/50 text-xs font-mono text-muted-foreground">
-                        v{appVersion}
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                        onClick={async () => {
+                            try {
+                                await openUrl('https://github.com/Rench321/sklad');
+                            } catch (error) {
+                                console.error('Failed to open link', error);
+                            }
+                        }}
+                        title="View source on GitHub"
+                    >
+                        <Github className="h-4 w-4" />
+                    </Button>
+                    {appVersion && (
+                        <div className="px-3 py-1 rounded-full bg-muted/50 border border-border/50 text-xs font-mono text-muted-foreground">
+                            v{appVersion}
+                        </div>
+                    )}
+                </div>
             </div>
 
             <Card className="glass border-border/50">
