@@ -72,7 +72,7 @@ jobs:
             | Windows | `.msi` or `.exe` |
             | macOS (Apple Silicon) | `_aarch64.dmg` |
             | macOS (Intel) | `_x64.dmg` |
-            | Linux | `.deb` or `.AppImage` |
+            | Linux | `.deb`, `.rpm` or `.AppImage` |
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
