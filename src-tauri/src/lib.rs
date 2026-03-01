@@ -98,12 +98,14 @@ pub fn run() {
                         PredefinedMenuItem::about(app.handle(), None, Some(about_metadata))
                     {
                         // The default menu on macOS has the app menu as the first item
-                        if let Some(app_menu) = default_menu.items().first() {
-                            if let Some(submenu) = app_menu.as_submenu() {
-                                // The about item is usually the first one in the app submenu
-                                // We can just append it or insert it
-                                // Alternatively, since setting the default menu is easier, let's just let Tauri handle it if we build the menu.
-                                // Actually tauri::menu::Menu::default() returns a new menu.
+                        if let Ok(items) = default_menu.items() {
+                            if let Some(app_menu) = items.first() {
+                                if let Some(_submenu) = app_menu.as_submenu() {
+                                    // The about item is usually the first one in the app submenu
+                                    // We can just append it or insert it
+                                    // Alternatively, since setting the default menu is easier, let's just let Tauri handle it if we build the menu.
+                                    // Actually tauri::menu::Menu::default() returns a new menu.
+                                }
                             }
                         }
                     }
@@ -227,6 +229,11 @@ pub fn run() {
         .expect("error while running tauri application");
 
     app.run(|_app_handle, _event| {
+        #[cfg(target_os = "macos")]
+        let app_handle = _app_handle;
+        #[cfg(target_os = "macos")]
+        let event = _event;
+
         #[cfg(target_os = "macos")]
         if let tauri::RunEvent::ExitRequested { api, .. } = event {
             api.prevent_exit();
