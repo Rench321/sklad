@@ -154,6 +154,9 @@ Contributions are welcome! Feel free to open issues or submit PRs.
 <a href="https://github.com/marsender">
   <img src="https://github.com/marsender.png" width="50" style="border-radius: 50%;" alt="marsender"/>
 </a>
+<a href="https://github.com/IMNotMax">
+  <img src="https://github.com/IMNotMax.png" width="50" style="border-radius: 50%;" alt="IMNotMax"/>
+</a>
 
 ---
 
