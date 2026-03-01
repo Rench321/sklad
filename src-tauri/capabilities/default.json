@@ -4,7 +4,8 @@
   "description": "Capability for the main window",
   "windows": [
     "main",
-    "search"
+    "search",
+    "create"
   ],
   "permissions": [
     "core:default",

@@ -28,6 +28,16 @@
         "decorations": false,
         "transparent": true,
         "center": true
+      },
+      {
+        "title": "Create",
+        "label": "create",
+        "width": 600,
+        "height": 400,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "center": true
       }
     ],
     "security": {

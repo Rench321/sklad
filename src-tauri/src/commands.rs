@@ -226,6 +226,8 @@ pub fn save_settings(
 
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
     let _ = app.global_shortcut().unregister_all();
+
+    // Register Search Shortcut
     if !settings.global_search_shortcut.is_empty() {
         match settings
             .global_search_shortcut
@@ -233,13 +235,33 @@ pub fn save_settings(
         {
             Ok(shortcut) => {
                 if let Err(e) = app.global_shortcut().register(shortcut) {
-                    eprintln!("Failed to register shortcut: {}", e);
+                    eprintln!("Failed to register search shortcut: {}", e);
                 }
             }
             Err(e) => {
                 eprintln!(
-                    "Failed to parse shortcut string '{}': {}",
+                    "Failed to parse search shortcut string '{}': {}",
                     settings.global_search_shortcut, e
+                );
+            }
+        }
+    }
+
+    // Register Create Shortcut
+    if !settings.global_create_shortcut.is_empty() {
+        match settings
+            .global_create_shortcut
+            .parse::<tauri_plugin_global_shortcut::Shortcut>()
+        {
+            Ok(shortcut) => {
+                if let Err(e) = app.global_shortcut().register(shortcut) {
+                    eprintln!("Failed to register create shortcut: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!(
+                    "Failed to parse create shortcut string '{}': {}",
+                    settings.global_create_shortcut, e
                 );
             }
         }
@@ -248,7 +270,7 @@ pub fn save_settings(
     let data_manager = DataManager::new(&app);
     data_manager
         .save_settings(&settings)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
 
     let nodes = data_manager.load_data();
     if let Ok(menu) = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes) {

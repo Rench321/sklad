@@ -30,13 +30,45 @@ pub fn run() {
         }))
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_handler(|app, _shortcut, event| {
+                .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        if let Some(window) = app.get_webview_window("search") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        } else {
-                            eprintln!("Could not find search window!");
+                        let data_manager = DataManager::new(&app);
+                        let settings = data_manager.load_settings();
+
+                        // Parse the shortcuts from settings to compare IDs
+                        let search_shortcut = settings
+                            .global_search_shortcut
+                            .parse::<tauri_plugin_global_shortcut::Shortcut>()
+                            .ok();
+                        let create_shortcut = settings
+                            .global_create_shortcut
+                            .parse::<tauri_plugin_global_shortcut::Shortcut>()
+                            .ok();
+
+                        println!("Shortcut pressed: {:?}", shortcut);
+                        println!(
+                            "Settings search: {:?} (parsed: {:?})",
+                            settings.global_search_shortcut, search_shortcut
+                        );
+                        println!(
+                            "Settings create: {:?} (parsed: {:?})",
+                            settings.global_create_shortcut, create_shortcut
+                        );
+
+                        if Some(*shortcut) == search_shortcut {
+                            if let Some(window) = app.get_webview_window("search") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            } else {
+                                eprintln!("Could not find search window!");
+                            }
+                        } else if Some(*shortcut) == create_shortcut {
+                            if let Some(window) = app.get_webview_window("create") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            } else {
+                                eprintln!("Could not find create window!");
+                            }
                         }
                     }
                 })
@@ -136,21 +168,39 @@ pub fn run() {
                 }
             }
 
-            // Register global shortcut
+            // Register global shortcuts
             let settings = data_manager.load_settings();
+
+            use tauri_plugin_global_shortcut::GlobalShortcutExt;
             let shortcut_str = &settings.global_search_shortcut;
             if !shortcut_str.is_empty() {
-                use tauri_plugin_global_shortcut::GlobalShortcutExt;
                 match shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     Ok(shortcut) => {
                         if let Err(e) = app.global_shortcut().register(shortcut) {
-                            eprintln!("Failed to register shortcut on startup: {}", e);
+                            eprintln!("Failed to register search shortcut on startup: {}", e);
                         }
                     }
                     Err(e) => {
                         eprintln!(
-                            "Failed to parse shortcut string '{}' on startup: {}",
+                            "Failed to parse search shortcut string '{}' on startup: {}",
                             shortcut_str, e
+                        );
+                    }
+                }
+            }
+
+            let create_shortcut_str = &settings.global_create_shortcut;
+            if !create_shortcut_str.is_empty() {
+                match create_shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+                    Ok(shortcut) => {
+                        if let Err(e) = app.global_shortcut().register(shortcut) {
+                            eprintln!("Failed to register create shortcut on startup: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to parse create shortcut string '{}' on startup: {}",
+                            create_shortcut_str, e
                         );
                     }
                 }

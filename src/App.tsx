@@ -45,13 +45,18 @@ function App() {
   useEffect(() => {
     initializeApp();
 
-    const unlisten = listen<string>("request-unlock", (event) => {
+    const unlistenUnlock = listen<string>("request-unlock", (event) => {
       setPendingCopyAction({ id: event.payload, autoHide: true });
       setShowLockModal(true);
     });
 
+    const unlistenUpdate = listen("data-updated", () => {
+      loadNodes();
+    });
+
     return () => {
-      unlisten.then((fn) => fn());
+      unlistenUnlock.then((fn) => fn());
+      unlistenUpdate.then((fn) => fn());
     };
   }, []);
 

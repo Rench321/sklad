@@ -315,6 +315,62 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             }}
                         />
                     </div>
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="global-create-shortcut" className="text-base font-semibold">
+                                Global Create Shortcut
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                Quickly create a new snippet from anywhere.
+                            </p>
+                        </div>
+                        <input
+                            id="global-create-shortcut"
+                            className="w-48 px-3 py-1.5 text-sm bg-background/50 border border-border/50 rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary/50 transition-all placeholder:text-muted-foreground/30 text-center"
+                            placeholder="Press keys to set..."
+                            value={settings.globalCreateShortcut || ""}
+                            readOnly
+                            onKeyDown={(e) => {
+                                e.preventDefault();
+
+                                // Handling clear
+                                if (e.key === "Backspace" || e.key === "Delete") {
+                                    onSettingsUpdate({ ...settings, globalCreateShortcut: "" });
+                                    e.currentTarget.blur();
+                                    return;
+                                }
+
+                                // Ignore standalone modifier keys
+                                if (['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) {
+                                    return;
+                                }
+
+                                const keys: string[] = [];
+
+                                if (e.metaKey) keys.push("Cmd");
+                                if (e.ctrlKey) keys.push("Ctrl");
+                                if (e.altKey) keys.push("Alt");
+                                if (e.shiftKey) keys.push("Shift");
+
+                                let keyName = e.key;
+                                if (e.code.startsWith("Key")) {
+                                    keyName = e.code.replace("Key", "");
+                                } else if (e.code.startsWith("Digit")) {
+                                    keyName = e.code.replace("Digit", "");
+                                } else if (keyName === " ") {
+                                    keyName = "Space";
+                                } else {
+                                    keyName = keyName.charAt(0).toUpperCase() + keyName.slice(1);
+                                }
+
+                                keys.push(keyName);
+
+                                const shortcut = keys.join("+");
+                                onSettingsUpdate({ ...settings, globalCreateShortcut: shortcut });
+                                e.currentTarget.blur();
+                            }}
+                        />
+                    </div>
                 </CardContent>
             </Card>
 

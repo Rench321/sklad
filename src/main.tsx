@@ -12,9 +12,18 @@ import "@fontsource/jetbrains-mono/500.css";
 
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { SearchWindow } from "./SearchWindow";
+import { CreateWindow } from "./CreateWindow";
+
+const webviewLabel = getCurrentWebviewWindow().label;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    {getCurrentWebviewWindow().label === "search" ? <SearchWindow /> : <App />}
+    {webviewLabel === "search" ? (
+      <SearchWindow />
+    ) : webviewLabel === "create" ? (
+      <CreateWindow />
+    ) : (
+      <App />
+    )}
   </React.StrictMode>,
 );
