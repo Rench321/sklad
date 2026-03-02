@@ -120,6 +120,7 @@ pub fn run() {
 
             tauri::tray::TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
+                .icon_as_template(true)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
@@ -235,11 +236,35 @@ pub fn run() {
         let event = _event;
 
         #[cfg(target_os = "macos")]
-        if let tauri::RunEvent::ExitRequested { api, .. } = event {
-            api.prevent_exit();
-            if let Some(window) = app_handle.get_webview_window("main") {
-                let _ = window.hide();
+        match event {
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                api.prevent_exit();
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.hide();
+                }
             }
+            tauri::RunEvent::WindowEvent { label, event, .. } => {
+                if label == "main" {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Prevent the window from being destroyed on macOS.
+                        // The JS onCloseRequested handler still fires and handles
+                        // the actual hiding and any unsaved-changes dialog.
+                        api.prevent_close();
+                    }
+                }
+            }
+            tauri::RunEvent::Reopen {
+                has_visible_windows,
+                ..
+            } => {
+                if !has_visible_windows {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+            }
+            _ => {}
         }
     });
 }
