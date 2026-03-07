@@ -10,6 +10,10 @@ pub struct TrayGenerator;
 
 impl TrayGenerator {
     pub fn generate_menu<R: Runtime>(app: &AppHandle<R>, nodes: &[Node]) -> tauri::Result<Menu<R>> {
+        log::info!(
+            "Generating tray menu. Received {} top-level nodes.",
+            nodes.len()
+        );
         let mut menu_builder = MenuBuilder::new(app);
 
         let data_manager = DataManager::new(app);
@@ -50,6 +54,7 @@ impl TrayGenerator {
             menu_builder = menu_builder.item(&quit_item);
         }
 
+        log::info!("Tray menu generated successfully. Compiling into a native menu object.");
         menu_builder.build()
     }
 
@@ -57,6 +62,7 @@ impl TrayGenerator {
         app: &AppHandle<R>,
         node: &Node,
     ) -> tauri::Result<tauri::menu::Submenu<R>> {
+        log::info!("Generating submenu for folder ID: {}", node.id);
         let mut submenu_builder = SubmenuBuilder::new(app, &node.label);
 
         if let Some(children) = &node.children {

@@ -61,6 +61,8 @@ impl Default for AppSettingsSecurity {
 pub struct AppSettings {
     pub theme: String, // 'dark' | 'light' | 'system'
     pub security: AppSettingsSecurity,
+    #[serde(rename = "loggingEnabled", default)]
+    pub logging_enabled: bool,
     #[serde(rename = "notificationsEnabled")]
     pub notifications_enabled: bool,
     #[serde(rename = "launchAtStartup", default)]
@@ -93,6 +95,7 @@ impl Default for AppSettings {
         Self {
             theme: "system".to_string(),
             security: AppSettingsSecurity::default(),
+            logging_enabled: false,
             notifications_enabled: true,
             launch_at_startup: false,
             auto_save: false,

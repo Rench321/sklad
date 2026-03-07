@@ -22,6 +22,8 @@ export const api = {
 
     openSnippetsPath: (): Promise<void> => invoke("open_snippets_path"),
 
+    openAppLogsDir: (): Promise<void> => invoke("open_app_logs_dir"),
+
     resetVault: (): Promise<[Node[], AppSettings]> => invoke("reset_vault"),
 
     isVaultUnlocked: (): Promise<boolean> => invoke("is_vault_unlocked"),

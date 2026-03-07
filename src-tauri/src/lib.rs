@@ -6,9 +6,12 @@ pub mod tray_generator;
 
 use crate::data_manager::DataManager;
 use crate::tray_generator::TrayGenerator;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_notification::NotificationExt;
+
+pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +24,11 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .filter(|_metadata| LOGGING_ENABLED.load(Ordering::Relaxed))
+                .build(),
+        )
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = app.emit("single-instance", ());
             if let Some(window) = app.get_webview_window("main") {
@@ -45,14 +53,16 @@ pub fn run() {
                             .parse::<tauri_plugin_global_shortcut::Shortcut>()
                             .ok();
 
-                        println!("Shortcut pressed: {:?}", shortcut);
-                        println!(
+                        log::info!("Shortcut pressed: {:?}", shortcut);
+                        log::info!(
                             "Settings search: {:?} (parsed: {:?})",
-                            settings.global_search_shortcut, search_shortcut
+                            settings.global_search_shortcut,
+                            search_shortcut
                         );
-                        println!(
+                        log::info!(
                             "Settings create: {:?} (parsed: {:?})",
-                            settings.global_create_shortcut, create_shortcut
+                            settings.global_create_shortcut,
+                            create_shortcut
                         );
 
                         if Some(*shortcut) == search_shortcut {
@@ -60,14 +70,14 @@ pub fn run() {
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             } else {
-                                eprintln!("Could not find search window!");
+                                log::error!("Could not find search window!");
                             }
                         } else if Some(*shortcut) == create_shortcut {
                             if let Some(window) = app.get_webview_window("create") {
                                 let _ = window.show();
                                 let _ = window.set_focus();
                             } else {
-                                eprintln!("Could not find create window!");
+                                log::error!("Could not find create window!");
                             }
                         }
                     }
@@ -78,8 +88,12 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             let data_manager = DataManager::new(handle);
-            let nodes = data_manager.load_data();
 
+            // Read settings, configure logging flag
+            let settings = data_manager.load_settings();
+            LOGGING_ENABLED.store(settings.logging_enabled, Ordering::Relaxed);
+
+            let nodes = data_manager.load_data();
             let menu = TrayGenerator::generate_menu(handle, &nodes)?;
 
             // Setup customized macOS app menu with metadata
@@ -115,7 +129,10 @@ pub fn run() {
             // We only actually need to inject the about metadata if macOS
             #[cfg(target_os = "macos")]
             if let Ok(menu) = tauri::menu::Menu::default(app.handle()) {
+                log::info!("MacOS default app menu initialized.");
                 let _ = app.set_menu(menu); // though we still need to modify the AboutMetadata inside it, which might be tricky in v2 this way.
+            } else {
+                log::error!("MacOS default app menu failed to initialize.");
             }
 
             tauri::tray::TrayIconBuilder::with_id("main")
@@ -125,8 +142,12 @@ pub fn run() {
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| {
                     let id = event.id.as_ref();
+                    log::info!("Tray menu item clicked: {}", id);
                     match id {
-                        "quit" => app.exit(0),
+                        "quit" => {
+                            log::info!("Quit menu item selected. Exiting app.");
+                            app.exit(0);
+                        }
                         "open" => show_main_window(app),
                         snippet_id => handle_snippet_click(app, snippet_id.to_string()),
                     }
@@ -142,6 +163,10 @@ pub fn run() {
 
                         let data_manager = DataManager::new(app);
                         let settings = data_manager.load_settings();
+                        log::info!(
+                            "Tray left-clicked. Action configured: {}",
+                            settings.tray_click_action
+                        );
 
                         if settings.tray_click_action == "open_app" {
                             show_main_window(app);
@@ -180,13 +205,14 @@ pub fn run() {
                 match shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     Ok(shortcut) => {
                         if let Err(e) = app.global_shortcut().register(shortcut) {
-                            eprintln!("Failed to register search shortcut on startup: {}", e);
+                            log::error!("Failed to register search shortcut on startup: {}", e);
                         }
                     }
                     Err(e) => {
-                        eprintln!(
+                        log::error!(
                             "Failed to parse search shortcut string '{}' on startup: {}",
-                            shortcut_str, e
+                            shortcut_str,
+                            e
                         );
                     }
                 }
@@ -197,13 +223,14 @@ pub fn run() {
                 match create_shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     Ok(shortcut) => {
                         if let Err(e) = app.global_shortcut().register(shortcut) {
-                            eprintln!("Failed to register create shortcut on startup: {}", e);
+                            log::error!("Failed to register create shortcut on startup: {}", e);
                         }
                     }
                     Err(e) => {
-                        eprintln!(
+                        log::error!(
                             "Failed to parse create shortcut string '{}' on startup: {}",
-                            create_shortcut_str, e
+                            create_shortcut_str,
+                            e
                         );
                     }
                 }
@@ -223,6 +250,7 @@ pub fn run() {
             commands::save_settings,
             commands::get_snippets_path,
             commands::open_snippets_path,
+            commands::open_app_logs_dir,
             commands::reset_vault,
             commands::is_vault_unlocked
         ])

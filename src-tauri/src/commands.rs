@@ -224,6 +224,11 @@ pub fn save_settings(
         *vault_manager.state.lock().unwrap() = VaultState::Locked;
     }
 
+    crate::LOGGING_ENABLED.store(
+        settings.logging_enabled,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+
     use tauri_plugin_global_shortcut::GlobalShortcutExt;
     let _ = app.global_shortcut().unregister_all();
 
@@ -235,13 +240,14 @@ pub fn save_settings(
         {
             Ok(shortcut) => {
                 if let Err(e) = app.global_shortcut().register(shortcut) {
-                    eprintln!("Failed to register search shortcut: {}", e);
+                    log::error!("Failed to register search shortcut: {}", e);
                 }
             }
             Err(e) => {
-                eprintln!(
+                log::error!(
                     "Failed to parse search shortcut string '{}': {}",
-                    settings.global_search_shortcut, e
+                    settings.global_search_shortcut,
+                    e
                 );
             }
         }
@@ -255,13 +261,14 @@ pub fn save_settings(
         {
             Ok(shortcut) => {
                 if let Err(e) = app.global_shortcut().register(shortcut) {
-                    eprintln!("Failed to register create shortcut: {}", e);
+                    log::error!("Failed to register create shortcut: {}", e);
                 }
             }
             Err(e) => {
-                eprintln!(
+                log::error!(
                     "Failed to parse create shortcut string '{}': {}",
-                    settings.global_create_shortcut, e
+                    settings.global_create_shortcut,
+                    e
                 );
             }
         }
@@ -304,6 +311,25 @@ pub fn open_snippets_path(app: AppHandle) -> Result<(), String> {
     let path = DataManager::new(&app).file_path;
     app.opener()
         .open_path(path.to_string_lossy(), None::<String>)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn open_app_logs_dir(app: AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    use tauri_plugin_opener::OpenerExt;
+
+    // Fallback to essentially the app path / logs if path resolving fails
+    let app_log_dir = app.path().app_log_dir().map_err(|e| e.to_string())?;
+
+    // Ensure the dir exists before trying to open it natively, else Windows Explorer might error
+    if !app_log_dir.exists() {
+        std::fs::create_dir_all(&app_log_dir)
+            .map_err(|e| format!("Failed to create logs dir: {}", e))?;
+    }
+
+    app.opener()
+        .open_path(app_log_dir.to_string_lossy(), None::<String>)
         .map_err(|e| e.to_string())
 }
 

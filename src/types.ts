@@ -23,6 +23,7 @@ export interface AppSettings {
         clearClipboard: boolean;
         masterPasswordEnabled: boolean;
     };
+    loggingEnabled: boolean;
     notificationsEnabled: boolean;
     launchAtStartup: boolean;
     autoSave: boolean;

@@ -129,6 +129,45 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             All your snippets, folders, and settings are stored in this JSON file.
                         </p>
                     </div>
+
+                    <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-primary/70" />
+                                <span className="text-sm font-semibold">Application Logs</span>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                    try {
+                                        await api.openAppLogsDir();
+                                    } catch (error) {
+                                        console.error("Failed to open logs directory", error);
+                                    }
+                                }}
+                                className="h-8 text-xs gap-2"
+                            >
+                                <ExternalLink className="w-3 h-3" />
+                                Open Folder
+                            </Button>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/60 italic">
+                            System logs and diagnostics to help troubleshoot any issues. Does not contain any snippets or secure info.
+                        </p>
+                        <div className="flex items-center justify-between border-t border-border/40 pt-3 mt-1">
+                            <span className="text-xs text-muted-foreground font-medium">Enable Diagnostic Logging</span>
+                            <Switch
+                                checked={settings.loggingEnabled || false}
+                                onCheckedChange={(checked) => {
+                                    onSettingsUpdate({
+                                        ...settings,
+                                        loggingEnabled: checked
+                                    });
+                                }}
+                            />
+                        </div>
+                    </div>
                 </CardContent>
             </Card>
 
