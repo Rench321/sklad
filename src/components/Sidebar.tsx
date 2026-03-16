@@ -1,5 +1,5 @@
 import { Node } from "@/types";
-import { Folder, FileText, ChevronRight, Lock, Plus, Trash2, FolderPlus, FilePlus, Container, Pencil, Settings as SettingsIcon } from "lucide-react";
+import { Folder, FileText, ChevronRight, Lock, Plus, Trash2, FolderPlus, FilePlus, Container, Pencil } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -444,23 +444,6 @@ export function Sidebar({ nodes, onSelectNode, selectedNodeId, onAddNode, onDele
                 )}
             </div>
 
-            {/* Bottom Actions */}
-            <div className="p-3 border-t border-border/50 bg-card/30">
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                        "w-full justify-start gap-3 hover:bg-primary/10 hover:text-primary transition-all border border-transparent",
-                        selectedNodeId === "settings"
-                            ? "bg-primary/15 text-primary border-primary/30"
-                            : "text-muted-foreground hover:border-border/50"
-                    )}
-                    onClick={() => onSelectNode({ id: 'settings', type: 'folder', label: 'Settings', parentId: null, createdAt: 0 })}
-                >
-                    <SettingsIcon className="w-4 h-4" />
-                    <span className="text-xs font-semibold uppercase tracking-wider">Settings</span>
-                </Button>
-            </div>
         </div>
     );
 }

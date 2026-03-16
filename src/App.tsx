@@ -20,7 +20,8 @@ import {
   isDescendantOf,
 } from "@/lib/treeUtils";
 import { Node, AppSettings } from "@/types";
-import { Container, Search, Lock, Unlock } from "lucide-react";
+import { Container, Search, Lock, Unlock, Settings as SettingsIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 
 
@@ -375,6 +376,16 @@ function App() {
               <kbd className="px-1.5 py-0.5 text-[10px] bg-muted rounded font-mono">⌘K</kbd>
             </button>
             <ThemeToggle />
+            <button
+              className={cn(
+                "flex items-center justify-center p-1.5 text-muted-foreground bg-secondary/50 rounded-md border border-border hover:bg-secondary hover:text-primary transition-smooth",
+                selectedNode?.id === 'settings' && "bg-primary/10 border-primary/30 text-primary"
+              )}
+              onClick={() => handleNodeSelect({ id: 'settings', type: 'folder', label: 'Settings', parentId: null, createdAt: 0 })}
+              title="Settings"
+            >
+              <SettingsIcon className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
