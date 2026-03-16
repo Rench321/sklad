@@ -181,6 +181,45 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
                     />
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* Secret toggle */}
+                    <div 
+                        className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-md border transition-all",
+                            isSecret ? "bg-yellow-500/10 border-yellow-500/20" : "bg-muted/30 border-border/50",
+                            !masterPasswordEnabled && "opacity-60 cursor-not-allowed"
+                        )}
+                        title={masterPasswordEnabled ? "Encrypted on save" : "Enable Master Password in Settings to use"}
+                    >
+                        <Switch
+                            id="secret-mode"
+                            checked={isSecret}
+                            onCheckedChange={(checked) => {
+                                if (!isUnlocked && masterPasswordEnabled) {
+                                    onUnlockTrigger?.();
+                                } else {
+                                    setIsSecret(checked);
+                                }
+                            }}
+                            disabled={!masterPasswordEnabled}
+                            className="data-[state=checked]:bg-yellow-500 scale-90 my-auto"
+                        />
+                        <Label htmlFor="secret-mode" className={cn(
+                            "flex items-center gap-1.5 cursor-pointer m-0",
+                            !masterPasswordEnabled && "cursor-not-allowed"
+                        )}>
+                            <Lock className={cn(
+                                "w-3.5 h-3.5 transition-colors",
+                                isSecret ? "text-yellow-500" : "text-muted-foreground/60"
+                            )} />
+                            <span className={cn(
+                                "text-sm font-medium transition-colors",
+                                isSecret ? "text-yellow-500" : "text-muted-foreground"
+                            )}>
+                                Secret
+                            </span>
+                        </Label>
+                    </div>
+
                     {/* ... Copy button ... */}
                     <Button
                         variant="outline"
@@ -205,57 +244,19 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
                             </>
                         )}
                     </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={isSaving || !isDirty || (isSecret && (!masterPasswordEnabled || !isUnlocked))}
-                        className={cn(
-                            "shadow-lg hover:shadow-xl transition-all",
-                            !isDirty ? "opacity-50" : "bg-primary hover:bg-primary/90"
-                        )}
-                    >
-                        <Save className="w-4 h-4 mr-2" />
-                        {isSaving ? "Saving..." : "Save"}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Secret toggle */}
-            <div className={cn(
-                "flex items-center space-x-3 p-3 rounded-lg bg-muted/30 border border-border/50 transition-all",
-                !masterPasswordEnabled && "opacity-60 cursor-not-allowed"
-            )}>
-                <Switch
-                    id="secret-mode"
-                    checked={isSecret}
-                    onCheckedChange={(checked) => {
-                        if (!isUnlocked && masterPasswordEnabled) {
-                            onUnlockTrigger?.();
-                        } else {
-                            setIsSecret(checked);
-                        }
-                    }}
-                    disabled={!masterPasswordEnabled}
-                    className="data-[state=checked]:bg-yellow-500"
-                />
-                <div className="flex items-center gap-2">
-                    <Lock className={cn(
-                        "w-4 h-4 transition-colors",
-                        isSecret ? "text-yellow-500" : "text-muted-foreground/50"
-                    )} />
-                    <Label htmlFor="secret-mode" className={cn(
-                        "cursor-pointer",
-                        !masterPasswordEnabled && "cursor-not-allowed"
-                    )}>
-                        <span className={cn(
-                            "font-medium transition-colors",
-                            isSecret ? "text-yellow-500" : "text-muted-foreground"
-                        )}>
-                            Secret snippet
-                        </span>
-                        <span className="text-xs text-muted-foreground/60 ml-2">
-                            {masterPasswordEnabled ? "(Encrypted on save)" : "(Enable Master Password in Settings to use)"}
-                        </span>
-                    </Label>
+                    {!autoSave && (
+                        <Button
+                            onClick={handleSave}
+                            disabled={isSaving || !isDirty || (isSecret && (!masterPasswordEnabled || !isUnlocked))}
+                            className={cn(
+                                "shadow-lg hover:shadow-xl transition-all",
+                                !isDirty ? "opacity-50" : "bg-primary hover:bg-primary/90"
+                            )}
+                        >
+                            <Save className="w-4 h-4 mr-2" />
+                            {isSaving ? "Saving..." : "Save"}
+                        </Button>
+                    )}
                 </div>
             </div>
 
