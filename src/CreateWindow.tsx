@@ -13,6 +13,27 @@ export function CreateWindow() {
     React.useEffect(() => {
         const window = getCurrentWebviewWindow();
 
+        const applyTheme = (theme: string) => {
+            localStorage.setItem("sklad-theme", theme);
+            document.documentElement.classList.toggle("dark", theme === "dark");
+        };
+
+        const handleThemeChange = (event: any) => {
+            applyTheme(event.payload);
+        };
+
+        let unlistenTheme: (() => void) | undefined;
+
+        import("@tauri-apps/api/event").then(({ listen }) => {
+            listen<string>("theme-changed", handleThemeChange).then((unlisten) => {
+                unlistenTheme = unlisten;
+                const stored = localStorage.getItem("sklad-theme");
+                if (stored) {
+                    applyTheme(stored);
+                }
+            });
+        });
+
         const unlistenFocus = window.onFocusChanged(({ payload: focused }) => {
             if (!focused) {
                 window.hide();
@@ -34,6 +55,7 @@ export function CreateWindow() {
 
         return () => {
             unlistenFocus.then(f => f());
+            if (unlistenTheme) unlistenTheme();
             document.removeEventListener('keydown', handleKeyDown);
         }
     }, []);

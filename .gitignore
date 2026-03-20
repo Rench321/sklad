@@ -24,7 +24,8 @@ src-tauri/gen/
 *.njsproj
 *.sln
 *.sw?
+tsconfig.tsbuildinfo
 
-# Project spec (private)
 spec.md
 docs/
+AGENTS.md

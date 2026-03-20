@@ -15,12 +15,16 @@ export function ThemeToggle() {
         document.documentElement.classList.toggle("dark", initialTheme === "dark");
     }, []);
 
-    const toggleTheme = () => {
+    const toggleTheme = async () => {
         setIsAnimating(true);
         const newTheme = theme === "light" ? "dark" : "light";
         setTheme(newTheme);
         localStorage.setItem("sklad-theme", newTheme);
         document.documentElement.classList.toggle("dark", newTheme === "dark");
+
+        const { emit } = await import("@tauri-apps/api/event");
+        await emit("theme-changed", newTheme);
+
         setTimeout(() => setIsAnimating(false), 500);
     };
 
