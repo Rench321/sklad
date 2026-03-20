@@ -51,12 +51,23 @@ function App() {
       setShowLockModal(true);
     });
 
+    const unlistenOpenSnippet = listen<string>("request-open-snippet", async (event) => {
+      const nodeId = event.payload;
+      const data = await api.getData();
+      const freshNodes = data ?? [];
+      const node = findNodeById(freshNodes, nodeId);
+      if (node) {
+        handleNodeSelect(node);
+      }
+    });
+
     const unlistenUpdate = listen("data-updated", () => {
       loadNodes();
     });
 
     return () => {
       unlistenUnlock.then((fn) => fn());
+      unlistenOpenSnippet.then((fn) => fn());
       unlistenUpdate.then((fn) => fn());
     };
   }, []);

@@ -73,6 +73,8 @@ pub struct AppSettings {
     pub global_search_shortcut: String,
     #[serde(rename = "globalCreateShortcut", default)]
     pub global_create_shortcut: String,
+    #[serde(rename = "globalSearchAction", default = "default_global_search_action")]
+    pub global_search_action: String,
     #[serde(rename = "trayClickAction", default = "default_tray_click_action")]
     pub tray_click_action: String,
     #[serde(
@@ -90,6 +92,10 @@ fn default_tray_menu_root_position() -> String {
     "bottom".to_string()
 }
 
+fn default_global_search_action() -> String {
+    "copy".to_string()
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -101,6 +107,7 @@ impl Default for AppSettings {
             auto_save: false,
             global_search_shortcut: "".to_string(),
             global_create_shortcut: "".to_string(),
+            global_search_action: default_global_search_action(),
             tray_click_action: default_tray_click_action(),
             tray_menu_root_position: default_tray_menu_root_position(),
         }

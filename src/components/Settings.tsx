@@ -356,6 +356,33 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                     </div>
                     <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
                         <div className="space-y-0.5">
+                            <Label htmlFor="global-search-action" className="text-base font-semibold">
+                                Global Search Action
+                            </Label>
+                            <p className="text-sm text-muted-foreground">
+                                What happens when you select a snippet from global search.
+                            </p>
+                        </div>
+                        <Select
+                            value={settings.globalSearchAction || 'copy'}
+                            onValueChange={(value: 'copy' | 'open') => {
+                                onSettingsUpdate({
+                                    ...settings,
+                                    globalSearchAction: value
+                                });
+                            }}
+                        >
+                            <SelectTrigger className="w-48 bg-background/50 border-border/50 h-9">
+                                <SelectValue placeholder="Select action..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="copy">Copy to Clipboard</SelectItem>
+                                <SelectItem value="open">Open in Main Window</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="space-y-0.5">
                             <Label htmlFor="global-create-shortcut" className="text-base font-semibold">
                                 Global Create Shortcut
                             </Label>

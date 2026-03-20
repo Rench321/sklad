@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 export function SearchWindow() {
     const [nodes, setNodes] = React.useState<Node[]>([]);
     const [searchValue, setSearchValue] = React.useState("");
+    const [globalSearchAction, setGlobalSearchAction] = React.useState<'copy' | 'open'>('copy');
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
@@ -23,7 +24,12 @@ export function SearchWindow() {
             const data = await api.getData();
             setNodes(data || []);
         };
+        const loadSettings = async () => {
+            const settings = await api.getSettings();
+            setGlobalSearchAction(settings.globalSearchAction || 'copy');
+        };
         loadNodes();
+        loadSettings();
     }, []);
 
     React.useEffect(() => {
@@ -50,12 +56,17 @@ export function SearchWindow() {
             });
         });
 
-        const unlistenFocus = window.onFocusChanged(({ payload: focused }) => {
+        const unlistenFocus = window.onFocusChanged(async ({ payload: focused }) => {
             if (!focused) {
                 window.hide();
             } else {
                 setSearchValue("");
-                api.getData().then(data => setNodes(data || []));
+                const [data, settings] = await Promise.all([
+                    api.getData(),
+                    api.getSettings(),
+                ]);
+                setNodes(data || []);
+                setGlobalSearchAction(settings.globalSearchAction || 'copy');
                 setTimeout(() => {
                     inputRef.current?.focus();
                 }, 50);
@@ -94,10 +105,20 @@ export function SearchWindow() {
 
     const handleSelect = async (node: Node) => {
         try {
-            await api.copySnippet(node.id);
-            await getCurrentWebviewWindow().hide();
+            if (globalSearchAction === 'open') {
+                const mainWindow = await (await import("@tauri-apps/api/webviewWindow")).WebviewWindow.getByLabel("main");
+                if (mainWindow) {
+                    await mainWindow.show();
+                    await mainWindow.setFocus();
+                    await mainWindow.emit("request-open-snippet", node.id);
+                }
+                await getCurrentWebviewWindow().hide();
+            } else {
+                await api.copySnippet(node.id);
+                await getCurrentWebviewWindow().hide();
+            }
         } catch (e: any) {
-            console.error("Failed to copy", e);
+            console.error("Failed to process snippet", e);
             if (e === "Vault is Locked") {
                 const mainWindow = await (await import("@tauri-apps/api/webviewWindow")).WebviewWindow.getByLabel("main");
                 if (mainWindow) {

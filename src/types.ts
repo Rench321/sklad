@@ -29,6 +29,7 @@ export interface AppSettings {
     autoSave: boolean;
     globalSearchShortcut: string;
     globalCreateShortcut: string;
+    globalSearchAction?: 'copy' | 'open';
     trayClickAction?: 'copy_last' | 'open_app';
     trayMenuRootPosition?: 'top' | 'bottom';
 }
