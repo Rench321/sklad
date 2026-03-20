@@ -334,7 +334,10 @@ pub fn open_app_logs_dir(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn reset_vault(app: AppHandle) -> Result<(Vec<Node>, crate::models::AppSettings), String> {
+pub fn reset_vault(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+) -> Result<(Vec<Node>, crate::models::AppSettings), String> {
     let data_manager = DataManager::new(&app);
     let mut nodes = data_manager.load_data();
     let mut settings = data_manager.load_settings();
@@ -346,6 +349,8 @@ pub fn reset_vault(app: AppHandle) -> Result<(Vec<Node>, crate::models::AppSetti
     data_manager
         .save_settings(&settings)
         .map_err(|e| e.to_string())?;
+
+    *vault_manager.state.lock().unwrap() = VaultState::Locked;
 
     Ok((nodes, settings))
 }

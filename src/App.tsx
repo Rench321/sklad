@@ -411,10 +411,8 @@ function App() {
                 await api.saveSettings(newSettings);
               }}
               onResetTrigger={async () => {
-                const [newNodes, newSettings] = await api.resetVault();
-                setNodes(newNodes);
-                setSettings(newSettings);
-                setIsUnlocked(false);
+                await api.resetVault();
+                await initializeApp();
               }}
             />
           ) : selectedNode ? (
