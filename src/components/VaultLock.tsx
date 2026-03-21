@@ -219,7 +219,7 @@ export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 
 
             {/* Version indicator */}
             <div className="absolute bottom-4 text-xs text-muted-foreground/40 font-mono">
-                SKLAD v0.2.0
+                SKLAD v0.2.1
             </div>
         </div>
     );
