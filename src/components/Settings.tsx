@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { isEnabled } from "@tauri-apps/plugin-autostart";
 import {
     Select,
     SelectContent,
@@ -28,6 +29,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
     const [snippetsPath, setSnippetsPath] = useState<string>("");
     const [confirmReset, setConfirmReset] = useState(false);
     const [appVersion, setAppVersion] = useState("");
+    const [autostartLoading, setAutostartLoading] = useState(false);
 
     useEffect(() => {
         import('@tauri-apps/api/app').then(app => {
@@ -43,18 +45,40 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
             }
         };
         fetchPath();
+
+        const syncAutostart = async () => {
+            try {
+                const enabled = await isEnabled();
+                if (settings.launchAtStartup !== enabled) {
+                    onSettingsUpdate({ ...settings, launchAtStartup: enabled });
+                }
+            } catch (error) {
+                console.error("Failed to sync autostart state", error);
+            }
+        };
+        syncAutostart();
     }, []);
 
     const handleAutoStartChange = async (enabled: boolean) => {
+        setAutostartLoading(true);
         try {
             if (enabled) {
                 await invoke("plugin:autostart|enable");
             } else {
                 await invoke("plugin:autostart|disable");
             }
-            onSettingsUpdate({ ...settings, launchAtStartup: enabled });
+            const actualState = await isEnabled();
+            onSettingsUpdate({ ...settings, launchAtStartup: actualState });
         } catch (error) {
             console.error("Failed to toggle autostart", error);
+            try {
+                const actualState = await isEnabled();
+                onSettingsUpdate({ ...settings, launchAtStartup: actualState });
+            } catch {
+                // If we can't even get state, leave toggle as-is
+            }
+        } finally {
+            setAutostartLoading(false);
         }
     };
 
@@ -216,6 +240,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             id="autostart"
                             checked={settings.launchAtStartup}
                             onCheckedChange={handleAutoStartChange}
+                            disabled={autostartLoading}
                         />
                     </div>
                     <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-muted/30 border border-border/50">
