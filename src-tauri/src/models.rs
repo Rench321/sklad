@@ -1,6 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupInfo {
+    pub filename: String,
+    pub timestamp: i64,
+    pub size: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeType {
     Folder,
@@ -85,6 +92,10 @@ pub struct AppSettings {
         default = "default_tray_menu_root_position"
     )]
     pub tray_menu_root_position: String,
+    #[serde(rename = "autoBackupEnabled", default)]
+    pub auto_backup_enabled: bool,
+    #[serde(rename = "autoBackupCount", default = "default_backup_count")]
+    pub auto_backup_count: u32,
 }
 
 fn default_tray_click_action() -> String {
@@ -93,6 +104,10 @@ fn default_tray_click_action() -> String {
 
 fn default_tray_menu_root_position() -> String {
     "bottom".to_string()
+}
+
+fn default_backup_count() -> u32 {
+    5
 }
 
 fn default_global_search_action() -> String {
@@ -113,6 +128,8 @@ impl Default for AppSettings {
             global_search_action: default_global_search_action(),
             tray_click_action: default_tray_click_action(),
             tray_menu_root_position: default_tray_menu_root_position(),
+            auto_backup_enabled: true,
+            auto_backup_count: default_backup_count(),
         }
     }
 }

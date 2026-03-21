@@ -1,5 +1,11 @@
 export type NodeType = 'folder' | 'snippet';
 
+export interface BackupInfo {
+    filename: string;
+    timestamp: number;
+    size: number;
+}
+
 export interface Node {
     id: string;             // UUID v4
     type: NodeType;
@@ -32,4 +38,6 @@ export interface AppSettings {
     globalSearchAction?: 'copy' | 'open';
     trayClickAction?: 'copy_last' | 'open_app';
     trayMenuRootPosition?: 'top' | 'bottom';
+    autoBackupEnabled?: boolean;
+    autoBackupCount?: number;
 }

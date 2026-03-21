@@ -153,6 +153,15 @@ pub fn save_data(
     let data_manager = DataManager::new(&app);
     data_manager.save_data(&nodes).map_err(|e| e.to_string())?;
 
+    let settings = data_manager.load_settings();
+    if settings.auto_backup_enabled {
+        if let Err(e) = data_manager.create_backup() {
+            log::error!("Failed to create backup after save: {}", e);
+        } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
+            log::error!("Failed to rotate backups: {}", e);
+        }
+    }
+
     let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes)
         .map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("main") {
@@ -362,4 +371,40 @@ fn remove_secrets_recursive(nodes: &mut Vec<Node>) {
             remove_secrets_recursive(children);
         }
     }
+}
+
+#[tauri::command]
+pub fn create_backup(app: AppHandle) -> Result<(), String> {
+    let data_manager = DataManager::new(&app);
+    let settings = data_manager.load_settings();
+
+    if !settings.auto_backup_enabled {
+        return Ok(());
+    }
+
+    data_manager.create_backup().map_err(|e| e.to_string())?;
+    data_manager
+        .rotate_backups(settings.auto_backup_count)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_backups(app: AppHandle) -> Vec<crate::models::BackupInfo> {
+    DataManager::new(&app).list_backups()
+}
+
+#[tauri::command]
+pub fn restore_backup(app: AppHandle, filename: String) -> Result<(), String> {
+    let data_manager = DataManager::new(&app);
+    data_manager.restore_backup(&filename)?;
+
+    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &Vec::new())
+        .map_err(|e| e.to_string())?;
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_menu(Some(menu));
+    }
+
+    Ok(())
 }

@@ -97,6 +97,14 @@ pub fn run() {
             let nodes = data_manager.load_data();
             let menu = TrayGenerator::generate_menu(handle, &nodes)?;
 
+            if settings.auto_backup_enabled {
+                if let Err(e) = data_manager.create_backup() {
+                    log::error!("Failed to create startup backup: {}", e);
+                } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
+                    log::error!("Failed to rotate backups: {}", e);
+                }
+            }
+
             // Setup customized macOS app menu with metadata
             #[cfg(target_os = "macos")]
             {
@@ -254,7 +262,10 @@ pub fn run() {
             commands::open_snippets_path,
             commands::open_app_logs_dir,
             commands::reset_vault,
-            commands::is_vault_unlocked
+            commands::is_vault_unlocked,
+            commands::create_backup,
+            commands::get_backups,
+            commands::restore_backup
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -273,14 +284,23 @@ pub fn run() {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.hide();
                     }
+                } else {
+                    let data_manager = DataManager::new(&app_handle);
+                    let settings = data_manager.load_settings();
+                    if settings.auto_backup_enabled {
+                        if let Err(e) = data_manager.create_backup() {
+                            log::error!("Failed to create backup on exit: {}", e);
+                        } else if let Err(e) =
+                            data_manager.rotate_backups(settings.auto_backup_count)
+                        {
+                            log::error!("Failed to rotate backups on exit: {}", e);
+                        }
+                    }
                 }
             }
             tauri::RunEvent::WindowEvent { label, event, .. } => {
                 if label == "main" {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        // Prevent the window from being destroyed on macOS.
-                        // The JS onCloseRequested handler still fires and handles
-                        // the actual hiding and any unsaved-changes dialog.
                         api.prevent_close();
                     }
                 }
@@ -293,6 +313,22 @@ pub fn run() {
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.show();
                         let _ = window.set_focus();
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        match _event {
+            tauri::RunEvent::ExitRequested { .. } => {
+                let data_manager = DataManager::new(&_app_handle);
+                let settings = data_manager.load_settings();
+                if settings.auto_backup_enabled {
+                    if let Err(e) = data_manager.create_backup() {
+                        log::error!("Failed to create backup on exit: {}", e);
+                    } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
+                        log::error!("Failed to rotate backups on exit: {}", e);
                     }
                 }
             }

@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { AppSettings } from "@/types";
+import { AppSettings, BackupInfo } from "@/types";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell, Power, Github } from "lucide-react";
+import { Shield, Lock, Settings as SettingsIcon, Database, ExternalLink, FileJson, AlertCircle, Bell, Power, Github, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,8 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
     const [confirmReset, setConfirmReset] = useState(false);
     const [appVersion, setAppVersion] = useState("");
     const [autostartLoading, setAutostartLoading] = useState(false);
+    const [backups, setBackups] = useState<BackupInfo[]>([]);
+    const [confirmRestore, setConfirmRestore] = useState<string | null>(null);
 
     useEffect(() => {
         import('@tauri-apps/api/app').then(app => {
@@ -57,7 +59,32 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
             }
         };
         syncAutostart();
+
+        const loadBackups = async () => {
+            try {
+                const list = await api.getBackups();
+                setBackups(list);
+            } catch (error) {
+                console.error("Failed to load backups", error);
+            }
+        };
+        loadBackups();
     }, []);
+
+    const handleRestoreBackup = async (filename: string) => {
+        if (confirmRestore !== filename) {
+            setConfirmRestore(filename);
+            setTimeout(() => setConfirmRestore(null), 3000);
+            return;
+        }
+        try {
+            await api.restoreBackup(filename);
+            setConfirmRestore(null);
+            window.location.reload();
+        } catch (error) {
+            console.error("Failed to restore backup", error);
+        }
+    };
 
     const handleAutoStartChange = async (enabled: boolean) => {
         setAutostartLoading(true);
@@ -154,7 +181,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                         </p>
                     </div>
 
-                    <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+                    <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50 animate-fade-in">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <AlertCircle className="w-4 h-4 text-primary/70" />
@@ -191,6 +218,87 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                 }}
                             />
                         </div>
+                    </div>
+
+                    <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <RefreshCw className="w-4 h-4 text-primary/70" />
+                                <span className="text-sm font-semibold">Automatic Backups</span>
+                            </div>
+                            <Switch
+                                checked={settings.autoBackupEnabled ?? true}
+                                onCheckedChange={(checked) => {
+                                    onSettingsUpdate({
+                                        ...settings,
+                                        autoBackupEnabled: checked
+                                    });
+                                }}
+                            />
+                        </div>
+
+                        {settings.autoBackupEnabled && (
+                            <div className="space-y-3 animate-fade-in">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">Number of backups to keep</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        max="20"
+                                        className="w-16 px-2 py-1 text-sm bg-background/50 border border-border/50 rounded-md text-center"
+                                        value={settings.autoBackupCount ?? 5}
+                                        onChange={(e) => {
+                                            const count = parseInt(e.target.value) || 5;
+                                            onSettingsUpdate({
+                                                ...settings,
+                                                autoBackupCount: Math.min(20, Math.max(1, count))
+                                            });
+                                        }}
+                                    />
+                                </div>
+
+                                {backups.length > 0 ? (
+                                    <div className="space-y-2">
+                                        <div className="text-xs text-muted-foreground font-medium">
+                                            Available Backups ({backups.length})
+                                        </div>
+                                        <div className="max-h-40 overflow-y-auto space-y-1">
+                                            {backups.map((backup) => (
+                                                <div
+                                                    key={backup.filename}
+                                                    className="flex items-center justify-between p-2 rounded bg-background/50 border border-border/40 text-xs"
+                                                >
+                                                    <span className="font-mono text-muted-foreground">
+                                                        {new Date(backup.timestamp).toLocaleString()}
+                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-muted-foreground/60">
+                                                            {(backup.size / 1024).toFixed(1)} KB
+                                                        </span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-6 px-2 text-xs"
+                                                            onClick={() => handleRestoreBackup(backup.filename)}
+                                                        >
+                                                            {confirmRestore === backup.filename ? "Confirm?" : "Restore"}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-muted-foreground/60 italic text-center py-2">
+                                        No backups yet
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <p className="text-[10px] text-muted-foreground/60 italic">
+                            Backups are created on startup, after saving, and before closing.
+                        </p>
                     </div>
                 </CardContent>
             </Card>
