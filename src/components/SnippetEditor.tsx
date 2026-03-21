@@ -97,6 +97,22 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
         }
     }), [label, value, isSecret, handleSave]);
 
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === "Tab") {
+            e.preventDefault();
+            const target = e.target as HTMLTextAreaElement;
+            const start = target.selectionStart;
+            const end = target.selectionEnd;
+            const newValue = value.substring(0, start) + "\t" + value.substring(end);
+            setValue(newValue);
+            requestAnimationFrame(() => {
+                target.selectionStart = target.selectionEnd = start + 1;
+            });
+        }
+    };
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
@@ -263,10 +279,12 @@ export const SnippetEditor = forwardRef<SnippetEditorRef, SnippetEditorProps>(({
             {/* Editor */}
             <div className="flex-1 flex flex-col min-h-0">
                 <Textarea
+                    ref={textareaRef}
                     className="flex-1 font-mono text-sm resize-none bg-muted/20 border-border/50 focus:border-primary/50 focus:ring-primary/20 rounded-lg p-4 placeholder:text-muted-foreground/40"
                     placeholder="Type your snippet content here..."
                     value={isSecret && !isUnlocked ? "" : value}
                     onChange={(e) => setValue(e.target.value)}
+                    onKeyDown={handleTextareaKeyDown}
                     disabled={isSecret && (!masterPasswordEnabled || !isUnlocked)}
                 />
             </div>
