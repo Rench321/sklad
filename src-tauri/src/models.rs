@@ -73,7 +73,10 @@ pub struct AppSettings {
     pub global_search_shortcut: String,
     #[serde(rename = "globalCreateShortcut", default)]
     pub global_create_shortcut: String,
-    #[serde(rename = "globalSearchAction", default = "default_global_search_action")]
+    #[serde(
+        rename = "globalSearchAction",
+        default = "default_global_search_action"
+    )]
     pub global_search_action: String,
     #[serde(rename = "trayClickAction", default = "default_tray_click_action")]
     pub tray_click_action: String,

@@ -12,6 +12,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_notification::NotificationExt;
 
 pub static LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
+static TRAY_QUIT_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -145,6 +146,7 @@ pub fn run() {
                     log::info!("Tray menu item clicked: {}", id);
                     match id {
                         "quit" => {
+                            TRAY_QUIT_REQUESTED.store(true, Ordering::SeqCst);
                             log::info!("Quit menu item selected. Exiting app.");
                             app.exit(0);
                         }
@@ -266,9 +268,11 @@ pub fn run() {
         #[cfg(target_os = "macos")]
         match event {
             tauri::RunEvent::ExitRequested { api, .. } => {
-                api.prevent_exit();
-                if let Some(window) = app_handle.get_webview_window("main") {
-                    let _ = window.hide();
+                if !TRAY_QUIT_REQUESTED.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.hide();
+                    }
                 }
             }
             tauri::RunEvent::WindowEvent { label, event, .. } => {

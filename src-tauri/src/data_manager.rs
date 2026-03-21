@@ -52,7 +52,10 @@ impl DataManager {
             .unwrap_or_default()
     }
 
-    pub fn save_settings(&self, settings: &crate::models::AppSettings) -> Result<(), std::io::Error> {
+    pub fn save_settings(
+        &self,
+        settings: &crate::models::AppSettings,
+    ) -> Result<(), std::io::Error> {
         let settings_path = self.file_path.with_file_name("settings.json");
         let content = serde_json::to_string_pretty(settings)?;
         fs::write(settings_path, content)
@@ -86,4 +89,3 @@ impl DataManager {
         }]
     }
 }
-
