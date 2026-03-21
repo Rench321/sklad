@@ -39,6 +39,7 @@ function App() {
   } | null>(null);
 
   const snippetEditorRef = useRef<SnippetEditorRef>(null);
+  const nodesRef = useRef<Node[]>([]);
   const [pendingNodeSelection, setPendingNodeSelection] = useState<Node | null>(null);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
@@ -124,6 +125,10 @@ function App() {
   };
 
   useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
     if (!isUnlocked) return;
 
     const lockTimeout = settings?.security.lockTimeout ?? 300000;
@@ -146,6 +151,17 @@ function App() {
 
     return () => clearTimeout(timeout);
   }, [isUnlocked, settings?.security.lockTimeout]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+        e.preventDefault();
+        handleAddNode(null, "snippet");
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const handleSaveNode = async (updatedNode: Node) => {
     const newNodes = updateNodeInTree(nodes, updatedNode.id, () => updatedNode);
@@ -179,7 +195,7 @@ function App() {
       children: type === "folder" ? [] : undefined,
     };
 
-    const newNodes = addNodeToParent(nodes, parentId, newNode);
+    const newNodes = addNodeToParent(nodesRef.current, parentId, newNode);
     setNodes(newNodes);
     setSelectedNode(newNode);
     await api.saveData(newNodes);
