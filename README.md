@@ -157,12 +157,51 @@ Contributions are welcome! Feel free to open issues or submit PRs.
 <a href="https://github.com/IMNotMax">
   <img src="https://github.com/IMNotMax.png" width="50" style="border-radius: 50%;" alt="IMNotMax"/>
 </a>
+<a href="https://github.com/spykerone">
+  <img src="https://github.com/spykerone.png" width="50" style="border-radius: 50%;" alt="spykerone"/>
+</a>
+<a href="https://github.com/NorfolkFR">
+  <img src="https://github.com/NorfolkFR.png" width="50" style="border-radius: 50%;" alt="NorfolkFR"/>
+</a>
 
 ---
 
 ## 📄 License
 
 [MIT](LICENSE) — Use it however you want.
+
+---
+
+## 💝 Support the Project
+
+If you find Sklad useful, you can support its development!
+
+<table>
+  <tr>
+    <td align="center">
+      <b>USDT (TRC-20) / TRX (Tron)</b><br><br>
+      <img src="public/qr-codes/USDT.jpg" width="150" alt="USDT QR Code"><br><br>
+      <code>TSfo5D6ppU6BXjArhLmQqF9Wn2DubwrskN</code>
+    </td>
+    <td align="center">
+      <b>Bitcoin (BTC)</b><br><br>
+      <img src="public/qr-codes/BTC.jpg" width="150" alt="BTC QR Code"><br><br>
+      <code>bc1qwme9mt8z9rvmg6yk6lydwwepvq4gtmx7t6peww</code>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <b>Ethereum (ETH)</b><br><br>
+      <img src="public/qr-codes/ETH.jpg" width="150" alt="ETH QR Code"><br><br>
+      <code>0x1D7E5aBe8202783305C2297c900df052636032AB</code>
+    </td>
+    <td align="center">
+      <b>TON</b><br><br>
+      <img src="public/qr-codes/TON.jpg" width="150" alt="TON QR Code"><br><br>
+      <code>UQBerf_nhuloww36ipxr00lKsSjQ6Ub_709Raz8D_6yi2GgW</code>
+    </td>
+  </tr>
+</table>
 
 ---
 
