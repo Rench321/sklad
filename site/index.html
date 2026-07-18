@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="theme-color" content="#11120f" />
+    <meta
+      name="description"
+      content="Sklad is a fast, encrypted, offline-first snippet manager for Windows, macOS, and Linux."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Sklad — Your snippets, without the cloud" />
+    <meta
+      property="og:description"
+      content="A private, cross-platform snippet manager that lives in your system tray."
+    />
+    <meta property="og:url" content="https://rench321.github.io/sklad/" />
+    <meta
+      property="og:image"
+      content="https://rench321.github.io/sklad/assets/screenshot.png"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="canonical" href="https://rench321.github.io/sklad/" />
+    <link rel="icon" type="image/svg+xml" href="assets/app-icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <title>Sklad — Your snippets, without the cloud</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="#top" aria-label="Sklad home">
+          <span class="brand-mark" aria-hidden="true">
+            <img src="assets/app-icon.svg" alt="" />
+          </span>
+          <span>SKLAD</span>
+        </a>
+
+        <nav class="main-nav" aria-label="Primary navigation">
+          <a href="#features">Features</a>
+          <a href="#privacy">Privacy</a>
+          <a href="#download">Download</a>
+        </nav>
+
+        <a
+          class="header-link"
+          href="https://github.com/Rench321/sklad"
+          target="_blank"
+          rel="noreferrer"
+        >
+          GitHub
+          <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="container hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span></span> Local-first snippet vault</p>
+            <h1>
+              Your snippets.<br />
+              One click away.<br />
+              <em>Still yours.</em>
+            </h1>
+            <p class="hero-lede">
+              Sklad keeps commands, API keys, passwords, and everyday text close at
+              hand — encrypted locally and available from your system tray.
+            </p>
+
+            <div class="hero-actions">
+              <a
+                class="button button-primary"
+                href="https://github.com/Rench321/sklad/releases/latest"
+              >
+                Download latest release
+                <span aria-hidden="true">↓</span>
+              </a>
+              <a
+                class="button button-secondary"
+                href="https://github.com/Rench321/sklad"
+              >
+                View source
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+
+            <ul class="platform-list" aria-label="Supported platforms">
+              <li>Windows</li>
+              <li>macOS</li>
+              <li>Linux</li>
+            </ul>
+          </div>
+
+          <div class="hero-visual" aria-label="Sklad application preview">
+            <div class="window-frame">
+              <div class="window-bar">
+                <div class="window-dots" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
+                <span class="window-title">Sklad / Local vault</span>
+                <span class="status-pill"><i></i> Offline</span>
+              </div>
+              <img
+                src="assets/screenshot.png"
+                alt="Sklad showing organized folders and a snippet editor"
+              />
+            </div>
+            <div class="visual-note visual-note-lock">
+              <span aria-hidden="true">◆</span>
+              <div>
+                <strong>AES-256-GCM</strong>
+                <small>Encrypted on your device</small>
+              </div>
+            </div>
+            <div class="visual-note visual-note-speed">
+              <strong>⌘ / Ctrl</strong>
+              <small>Global access</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="container trust-row" aria-label="Product principles">
+          <div><strong>0</strong><span>accounts</span></div>
+          <div><strong>0</strong><span>cloud sync</span></div>
+          <div><strong>0</strong><span>tracking</span></div>
+          <p>Your data stays on your machine. That is the feature.</p>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="container">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow"><span></span> Built for daily use</p>
+              <h2>Fast when you need it.<br />Quiet when you do not.</h2>
+            </div>
+            <p>
+              Sklad lives in the tray, stays out of the way, and turns repeated
+              copy-paste work into a two-second action.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+            <article class="feature-card feature-card-wide">
+              <span class="feature-number">01</span>
+              <div class="feature-icon" aria-hidden="true">⌕</div>
+              <h3>Find anything instantly</h3>
+              <p>
+                Open global search from any application, find a snippet, and copy it
+                without breaking your flow.
+              </p>
+              <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Space</kbd></div>
+            </article>
+
+            <article class="feature-card">
+              <span class="feature-number">02</span>
+              <div class="feature-icon" aria-hidden="true">▣</div>
+              <h3>Nested organization</h3>
+              <p>Keep growing collections readable with folders and drag-and-drop.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="feature-number">03</span>
+              <div class="feature-icon" aria-hidden="true">✦</div>
+              <h3>Instant creation</h3>
+              <p>Capture a new snippet from anywhere with a configurable shortcut.</p>
+            </article>
+
+            <article class="feature-card">
+              <span class="feature-number">04</span>
+              <div class="feature-icon" aria-hidden="true">↻</div>
+              <h3>Autosave and backups</h3>
+              <p>Work naturally while Sklad keeps local recovery points for you.</p>
+            </article>
+
+            <article class="feature-card feature-card-dark">
+              <span class="feature-number">05</span>
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M4 6h5m4 0h7M9 3v6M4 12h9m4 0h3M13 9v6M4 18h3m4 0h9M7 15v6" />
+                </svg>
+              </div>
+              <h3>Your desktop, your way</h3>
+              <p>
+                Light and dark themes, tray behavior, shortcuts, and lock timing are
+                yours to configure.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section demo-section" id="demo">
+        <div class="container demo-grid">
+          <div class="demo-copy">
+            <p class="eyebrow"><span></span> The whole workflow</p>
+            <h2>Tray. Search. Copy. Done.</h2>
+            <p>
+              No workspace to open, no account to sign into, and no browser tab to
+              hunt down. Sklad is already there when you need it.
+            </p>
+            <ol class="steps">
+              <li><span>1</span>Open Sklad or invoke global search</li>
+              <li><span>2</span>Choose the snippet you need</li>
+              <li><span>3</span>Paste and keep moving</li>
+            </ol>
+          </div>
+          <div class="demo-frame">
+            <div class="demo-label"><span></span> Live product demo</div>
+            <img
+              src="assets/demo.gif"
+              alt="Animation showing the Sklad snippet workflow"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section class="section privacy-section" id="privacy">
+        <div class="container privacy-grid">
+          <div class="privacy-copy">
+            <p class="eyebrow eyebrow-light"><span></span> Offline by design</p>
+            <h2>Privacy is an architecture, not a setting.</h2>
+            <p>
+              Sklad does not need an account, a server, or internet access. Sensitive
+              snippets are encrypted before they touch disk, and the key is derived
+              from your master password.
+            </p>
+            <a
+              class="text-link"
+              href="https://github.com/Rench321/sklad"
+            >
+              Inspect the source code <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div class="privacy-points">
+            <article>
+              <span aria-hidden="true">01</span>
+              <div>
+                <h3>Local storage only</h3>
+                <p>Your vault never leaves your computer.</p>
+              </div>
+            </article>
+            <article>
+              <span aria-hidden="true">02</span>
+              <div>
+                <h3>Modern encryption</h3>
+                <p>AES-256-GCM with Argon2-based key derivation.</p>
+              </div>
+            </article>
+            <article>
+              <span aria-hidden="true">03</span>
+              <div>
+                <h3>No silent networking</h3>
+                <p>No telemetry, background checks, or cloud dependencies.</p>
+              </div>
+            </article>
+            <article>
+              <span aria-hidden="true">04</span>
+              <div>
+                <h3>Open source</h3>
+                <p>The implementation is public and auditable.</p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section download-section" id="download">
+        <div class="container">
+          <div class="download-panel">
+            <div class="download-copy">
+              <p class="eyebrow"><span></span> Available now</p>
+              <h2>Put your useful text<br />within reach.</h2>
+              <p>
+                Download the latest release from GitHub. No account, subscription, or
+                setup wizard required.
+              </p>
+              <a
+                class="button button-primary"
+                href="https://github.com/Rench321/sklad/releases/latest"
+              >
+                Open latest release <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+
+            <div class="platform-cards">
+              <a href="https://github.com/Rench321/sklad/releases/latest">
+                <span class="platform-icon" aria-hidden="true">⊞</span>
+                <span><strong>Windows</strong><small>.msi or .exe</small></span>
+                <b aria-hidden="true">→</b>
+              </a>
+              <a href="https://github.com/Rench321/sklad/releases/latest">
+                <span class="platform-icon" aria-hidden="true">●</span>
+                <span><strong>macOS</strong><small>Apple Silicon &amp; Intel</small></span>
+                <b aria-hidden="true">→</b>
+              </a>
+              <a href="https://github.com/Rench321/sklad/releases/latest">
+                <span class="platform-icon" aria-hidden="true">◇</span>
+                <span><strong>Linux</strong><small>.deb, .rpm or AppImage</small></span>
+                <b aria-hidden="true">→</b>
+              </a>
+            </div>
+          </div>
+
+          <div class="install-note">
+            <span>macOS via Homebrew</span>
+            <code>brew install --cask --no-quarantine Rench321/sklad/sklad</code>
+          </div>
+        </div>
+      </section>
+
+      <section class="section faq-section" id="faq">
+        <div class="container faq-grid">
+          <div>
+            <p class="eyebrow"><span></span> Good to know</p>
+            <h2>Before you install</h2>
+          </div>
+          <div class="faq-list">
+            <details>
+              <summary>Does Sklad connect to the internet?<span>+</span></summary>
+              <p>
+                No. The application is designed to work fully offline and does not
+                perform telemetry or update checks.
+              </p>
+            </details>
+            <details>
+              <summary>Where is my data stored?<span>+</span></summary>
+              <p>
+                In your operating system's local application-data directory. Sklad can
+                open that location for you from Settings.
+              </p>
+            </details>
+            <details>
+              <summary>Why does my OS show a warning?<span>+</span></summary>
+              <p>
+                Current builds are not code-signed or notarized. The release notes
+                include platform-specific installation guidance.
+              </p>
+            </details>
+            <details>
+              <summary>How do I know when an update is available?<span>+</span></summary>
+              <p>
+                Visit GitHub Releases or update through your package manager. Sklad
+                intentionally does not make network requests to check for updates.
+              </p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <a class="brand" href="#top">
+          <span class="brand-mark" aria-hidden="true">
+            <img src="assets/app-icon.svg" alt="" />
+          </span>
+          <span>SKLAD</span>
+        </a>
+        <p>Made with Rust, React, and a healthy distrust of unnecessary clouds.</p>
+        <div>
+          <a href="https://github.com/Rench321/sklad">Source</a>
+          <a href="https://github.com/Rench321/sklad/issues">Issues</a>
+          <a href="https://github.com/Rench321/sklad/releases">Releases</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

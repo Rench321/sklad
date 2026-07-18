@@ -8,7 +8,7 @@
 **Sklad** is a cross-platform snippet manager that lives in your system tray. Store passwords, API keys, code snippets, and any text you copy frequently — encrypted and always one click away.
 
 <p align="center">
-  <img src="public/demo.gif" alt="Sklad Demo" width="600">
+  <img src="site/assets/demo.gif" alt="Sklad Demo" width="600">
 </p>
 
 ---
@@ -26,7 +26,7 @@
 - 🖱 **Customizable Tray** — Configure tray left-click actions and context menu layout
 
 <p align="center">
-  <img src="public/screenshot.png" alt="Sklad UI" width="700">
+  <img src="site/assets/screenshot.png" alt="Sklad UI" width="700">
 </p>
 
 ---
@@ -180,24 +180,24 @@ If you find Sklad useful, you can support its development!
   <tr>
     <td align="center">
       <b>USDT (TRC-20) / TRX (Tron)</b><br><br>
-      <img src="public/qr-codes/USDT.jpg" width="150" alt="USDT QR Code"><br><br>
+      <img src="site/assets/qr-codes/USDT.jpg" width="150" alt="USDT QR Code"><br><br>
       <code>TSfo5D6ppU6BXjArhLmQqF9Wn2DubwrskN</code>
     </td>
     <td align="center">
       <b>Bitcoin (BTC)</b><br><br>
-      <img src="public/qr-codes/BTC.jpg" width="150" alt="BTC QR Code"><br><br>
+      <img src="site/assets/qr-codes/BTC.jpg" width="150" alt="BTC QR Code"><br><br>
       <code>bc1qwme9mt8z9rvmg6yk6lydwwepvq4gtmx7t6peww</code>
     </td>
   </tr>
   <tr>
     <td align="center">
       <b>Ethereum (ETH)</b><br><br>
-      <img src="public/qr-codes/ETH.jpg" width="150" alt="ETH QR Code"><br><br>
+      <img src="site/assets/qr-codes/ETH.jpg" width="150" alt="ETH QR Code"><br><br>
       <code>0x1D7E5aBe8202783305C2297c900df052636032AB</code>
     </td>
     <td align="center">
       <b>TON</b><br><br>
-      <img src="public/qr-codes/TON.jpg" width="150" alt="TON QR Code"><br><br>
+      <img src="site/assets/qr-codes/TON.jpg" width="150" alt="TON QR Code"><br><br>
       <code>UQBerf_nhuloww36ipxr00lKsSjQ6Ub_709Raz8D_6yi2GgW</code>
     </td>
   </tr>

@@ -29,3 +29,7 @@ tsconfig.tsbuildinfo
 spec.md
 docs/
 AGENTS.md
+
+# Local agent instructions and installed skills
+.agents/
+skills-lock.json
