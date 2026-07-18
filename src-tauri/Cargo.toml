@@ -1,6 +1,6 @@
 [package]
 name = "sklad"
-version = "0.2.1"
+version = "0.2.2"
 description = "Tray Snippet Manager"
 authors = ["you"]
 edition = "2021"
