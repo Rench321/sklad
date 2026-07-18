@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://rench321.github.io/sklad/sitemap.xml
