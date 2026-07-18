@@ -2,7 +2,7 @@ use crate::data_manager::DataManager;
 use crate::models::{Node, NodeType};
 use crate::security::{self, Key, VaultManager, VaultState};
 use aes_gcm::aead::rand_core::RngCore;
-use tauri::{AppHandle, Runtime, State};
+use tauri::{AppHandle, Emitter, Runtime, State};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tauri_plugin_notification::NotificationExt;
 
@@ -400,11 +400,14 @@ pub fn restore_backup(app: AppHandle, filename: String) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
     data_manager.restore_backup(&filename)?;
 
-    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &Vec::new())
+    let nodes = data_manager.load_data();
+    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes)
         .map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("main") {
-        let _ = tray.set_menu(Some(menu));
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
     }
+
+    app.emit("data-updated", ()).map_err(|e| e.to_string())?;
 
     Ok(())
 }
