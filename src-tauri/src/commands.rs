@@ -378,10 +378,6 @@ pub fn create_backup(app: AppHandle) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
     let settings = data_manager.load_settings();
 
-    if !settings.auto_backup_enabled {
-        return Ok(());
-    }
-
     data_manager.create_backup().map_err(|e| e.to_string())?;
     data_manager
         .rotate_backups(settings.auto_backup_count)
