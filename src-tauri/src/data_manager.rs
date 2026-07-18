@@ -1,7 +1,9 @@
 use crate::models::{BackupInfo, Node};
 use std::fs;
-use std::path::PathBuf;
+use std::io::{self, Write};
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
+use tempfile::NamedTempFile;
 
 pub struct DataManager {
     pub file_path: PathBuf,
@@ -15,13 +17,17 @@ impl DataManager {
             .app_data_dir()
             .expect("failed to resolve app data dir");
 
+        Self::from_app_data_dir(app_data_dir)
+    }
+
+    fn from_app_data_dir(app_data_dir: PathBuf) -> Self {
         if !app_data_dir.exists() {
             fs::create_dir_all(&app_data_dir).expect("failed to create app data dir");
         }
 
         let backups_dir = app_data_dir.join("backups");
         if !backups_dir.exists() {
-            let _ = fs::create_dir_all(&backups_dir);
+            fs::create_dir_all(&backups_dir).expect("failed to create backups dir");
         }
 
         Self {
@@ -44,7 +50,7 @@ impl DataManager {
 
     pub fn save_data(&self, nodes: &[Node]) -> Result<(), std::io::Error> {
         let content = serde_json::to_string_pretty(nodes)?;
-        fs::write(&self.file_path, content)
+        Self::atomic_write(&self.file_path, content.as_bytes())
     }
 
     pub fn load_settings(&self) -> crate::models::AppSettings {
@@ -65,7 +71,7 @@ impl DataManager {
     ) -> Result<(), std::io::Error> {
         let settings_path = self.file_path.with_file_name("settings.json");
         let content = serde_json::to_string_pretty(settings)?;
-        fs::write(settings_path, content)
+        Self::atomic_write(&settings_path, content.as_bytes())
     }
 
     pub fn create_backup(&self) -> Result<(), std::io::Error> {
@@ -73,15 +79,23 @@ impl DataManager {
             return Ok(());
         }
 
-        let timestamp = std::time::SystemTime::now()
+        let mut timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis() as i64;
 
-        let backup_name = format!("sklad_backup_{}.json", timestamp);
-        let backup_path = self.backups_dir.join(&backup_name);
+        let backup_path = loop {
+            let candidate = self
+                .backups_dir
+                .join(format!("sklad_backup_{}.json", timestamp));
+            if !candidate.exists() {
+                break candidate;
+            }
+            timestamp += 1;
+        };
 
-        fs::copy(&self.file_path, &backup_path)?;
+        let content = fs::read(&self.file_path)?;
+        Self::atomic_write(&backup_path, &content)?;
 
         log::info!("Created backup: {:?}", backup_path);
         Ok(())
@@ -93,16 +107,12 @@ impl DataManager {
         for entry in fs::read_dir(&self.backups_dir)? {
             let entry = entry?;
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    if stem.starts_with("sklad_backup_") {
-                        if let Some(timestamp_str) = stem.strip_prefix("sklad_backup_") {
-                            if let Ok(timestamp) = timestamp_str.parse::<i64>() {
-                                backups.push((timestamp, path));
-                            }
-                        }
-                    }
-                }
+            if let Some(timestamp) = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(Self::backup_timestamp)
+            {
+                backups.push((timestamp, path));
             }
         }
 
@@ -127,24 +137,14 @@ impl DataManager {
         if let Ok(entries) = fs::read_dir(&self.backups_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                    if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                        if stem.starts_with("sklad_backup_") {
-                            if let Some(timestamp_str) = stem.strip_prefix("sklad_backup_") {
-                                if let Ok(timestamp) = timestamp_str.parse::<i64>() {
-                                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                                    if let Some(filename) =
-                                        path.file_name().and_then(|n| n.to_str())
-                                    {
-                                        backups.push(BackupInfo {
-                                            filename: filename.to_string(),
-                                            timestamp,
-                                            size,
-                                        });
-                                    }
-                                }
-                            }
-                        }
+                if let Some(filename) = path.file_name().and_then(|name| name.to_str()) {
+                    if let Some(timestamp) = Self::backup_timestamp(filename) {
+                        let size = entry.metadata().map(|metadata| metadata.len()).unwrap_or(0);
+                        backups.push(BackupInfo {
+                            filename: filename.to_string(),
+                            timestamp,
+                            size,
+                        });
                     }
                 }
             }
@@ -155,26 +155,63 @@ impl DataManager {
     }
 
     pub fn restore_backup(&self, filename: &str) -> Result<(), String> {
+        if Self::backup_timestamp(filename).is_none()
+            || filename.contains('/')
+            || filename.contains('\\')
+        {
+            return Err("Invalid backup filename".to_string());
+        }
+
         let backup_path = self.backups_dir.join(filename);
 
         if !backup_path.exists() {
             return Err("Backup file not found".to_string());
         }
 
-        if !self.file_path.exists() {
-            return Err("No current data file to restore over".to_string());
-        }
+        let content =
+            fs::read(&backup_path).map_err(|e| format!("Failed to read backup: {}", e))?;
 
-        let content = fs::read_to_string(&backup_path)
-            .map_err(|e| format!("Failed to read backup: {}", e))?;
-
-        serde_json::from_str::<Vec<Node>>(&content)
+        serde_json::from_slice::<Vec<Node>>(&content)
             .map_err(|e| format!("Invalid backup format: {}", e))?;
 
-        fs::copy(&backup_path, &self.file_path)
+        if self.file_path.exists() {
+            self.create_backup()
+                .map_err(|e| format!("Failed to preserve current data: {}", e))?;
+        }
+
+        Self::atomic_write(&self.file_path, &content)
             .map_err(|e| format!("Failed to restore backup: {}", e))?;
 
         log::info!("Restored backup: {:?}", backup_path);
+        Ok(())
+    }
+
+    fn backup_timestamp(filename: &str) -> Option<i64> {
+        filename
+            .strip_prefix("sklad_backup_")?
+            .strip_suffix(".json")?
+            .parse::<i64>()
+            .ok()
+    }
+
+    fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
+        let parent = path.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "file path has no parent directory",
+            )
+        })?;
+        fs::create_dir_all(parent)?;
+
+        let mut temporary = NamedTempFile::new_in(parent)?;
+        temporary.write_all(content)?;
+        temporary.as_file().sync_all()?;
+        temporary.persist(path).map_err(|error| error.error)?;
+
+        if let Ok(directory) = fs::File::open(parent) {
+            let _ = directory.sync_all();
+        }
+
         Ok(())
     }
 
@@ -204,5 +241,101 @@ impl DataManager {
             encrypted_value: None,
             is_secret: Some(false),
         }]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataManager;
+    use crate::models::{Node, NodeType};
+
+    fn snippet(label: &str) -> Node {
+        Node {
+            id: format!("{}-id", label),
+            node_type: NodeType::Snippet,
+            label: label.to_string(),
+            parent_id: None,
+            created_at: 0,
+            children: None,
+            value: Some(label.to_string()),
+            encrypted_value: None,
+            is_secret: Some(false),
+        }
+    }
+
+    #[test]
+    fn save_data_round_trips_without_leaving_temporary_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+
+        manager.save_data(&[snippet("saved")]).unwrap();
+
+        assert_eq!(manager.load_data()[0].label, "saved");
+        let app_entries = std::fs::read_dir(manager.file_path.parent().unwrap()).unwrap();
+        assert!(app_entries
+            .filter_map(Result::ok)
+            .all(|entry| !entry.file_name().to_string_lossy().starts_with(".tmp")));
+    }
+
+    #[test]
+    fn backups_use_unique_names() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager.save_data(&[snippet("current")]).unwrap();
+
+        manager.create_backup().unwrap();
+        manager.create_backup().unwrap();
+
+        let backups = manager.list_backups();
+        assert_eq!(backups.len(), 2);
+        assert_ne!(backups[0].filename, backups[1].filename);
+    }
+
+    #[test]
+    fn restore_preserves_current_data_as_a_safety_backup() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager.save_data(&[snippet("old")]).unwrap();
+        manager.create_backup().unwrap();
+        let old_backup = manager.list_backups()[0].filename.clone();
+        manager.save_data(&[snippet("current")]).unwrap();
+
+        manager.restore_backup(&old_backup).unwrap();
+
+        assert_eq!(manager.load_data()[0].label, "old");
+        let safety_backup = &manager.list_backups()[0];
+        let safety_content =
+            std::fs::read(manager.backups_dir.join(&safety_backup.filename)).unwrap();
+        let safety_nodes: Vec<Node> = serde_json::from_slice(&safety_content).unwrap();
+        assert_eq!(safety_nodes[0].label, "current");
+    }
+
+    #[test]
+    fn restore_rejects_invalid_content_without_replacing_current_data() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager.save_data(&[snippet("current")]).unwrap();
+        let invalid_backup = manager.backups_dir.join("sklad_backup_123.json");
+        std::fs::write(invalid_backup, b"not json").unwrap();
+
+        let error = manager.restore_backup("sklad_backup_123.json").unwrap_err();
+
+        assert!(error.starts_with("Invalid backup format:"));
+        assert_eq!(manager.load_data()[0].label, "current");
+    }
+
+    #[test]
+    fn restore_rejects_paths_outside_the_backups_directory() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+
+        assert_eq!(
+            manager.restore_backup("../sklad_backup_123.json"),
+            Err("Invalid backup filename".to_string())
+        );
+        assert_eq!(
+            manager.restore_backup("..\\sklad_backup_123.json"),
+            Err("Invalid backup filename".to_string())
+        );
     }
 }
