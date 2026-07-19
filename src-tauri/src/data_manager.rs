@@ -1,9 +1,98 @@
 use crate::models::{BackupInfo, Node};
+use serde::{de::DeserializeOwned, Serialize};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 use tempfile::NamedTempFile;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageFile {
+    Data,
+    Settings,
+}
+
+impl StorageFile {
+    fn file_name(self) -> &'static str {
+        match self {
+            Self::Data => "sklad.json",
+            Self::Settings => "settings.json",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageIssueKind {
+    InvalidFormat,
+    Unreadable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageIssue {
+    pub file: StorageFile,
+    pub kind: StorageIssueKind,
+    pub file_name: String,
+    pub reason: String,
+}
+
+impl StorageIssue {
+    fn invalid(file: StorageFile, error: serde_json::Error) -> Self {
+        Self {
+            file,
+            kind: StorageIssueKind::InvalidFormat,
+            file_name: file.file_name().to_string(),
+            reason: format!(
+                "JSON does not match the expected Sklad format (line {}, column {})",
+                error.line(),
+                error.column()
+            ),
+        }
+    }
+
+    fn unreadable(file: StorageFile, error: io::Error) -> Self {
+        Self {
+            file,
+            kind: StorageIssueKind::Unreadable,
+            file_name: file.file_name().to_string(),
+            reason: error.to_string(),
+        }
+    }
+
+    fn invalid_reason(file: StorageFile, reason: impl Into<String>) -> Self {
+        Self {
+            file,
+            kind: StorageIssueKind::InvalidFormat,
+            file_name: file.file_name().to_string(),
+            reason: reason.into(),
+        }
+    }
+}
+
+impl std::fmt::Display for StorageIssue {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let description = match self.kind {
+            StorageIssueKind::InvalidFormat => "has an invalid format",
+            StorageIssueKind::Unreadable => "could not be read",
+        };
+        write!(
+            formatter,
+            "{} {}: {}",
+            self.file_name, description, self.reason
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageStatus {
+    pub data_issue: Option<StorageIssue>,
+    pub settings_issue: Option<StorageIssue>,
+    pub newest_valid_backup: Option<BackupInfo>,
+    pub has_encrypted_secrets: bool,
+}
 
 pub struct DataManager {
     pub file_path: PathBuf,
@@ -36,16 +125,16 @@ impl DataManager {
         }
     }
 
-    pub fn load_data(&self) -> Vec<Node> {
+    pub fn load_data(&self) -> Result<Vec<Node>, StorageIssue> {
         if !self.file_path.exists() {
             let defaults = Self::default_nodes();
             // Save defaults to disk so the file exists for "Open File"
-            let _ = self.save_data(&defaults);
-            return defaults;
+            self.save_data(&defaults)
+                .map_err(|error| StorageIssue::unreadable(StorageFile::Data, error))?;
+            return Ok(defaults);
         }
 
-        let content = fs::read_to_string(&self.file_path).unwrap_or_else(|_| "[]".to_string());
-        serde_json::from_str(&content).unwrap_or_default()
+        Self::read_json(&self.file_path, StorageFile::Data)
     }
 
     pub fn save_data(&self, nodes: &[Node]) -> Result<(), std::io::Error> {
@@ -53,31 +142,87 @@ impl DataManager {
         Self::atomic_write(&self.file_path, content.as_bytes())
     }
 
-    pub fn load_settings(&self) -> crate::models::AppSettings {
-        let settings_path = self.file_path.with_file_name("settings.json");
+    pub fn load_settings(&self) -> Result<crate::models::AppSettings, StorageIssue> {
+        let settings_path = self.settings_path();
         if !settings_path.exists() {
-            return crate::models::AppSettings::default();
+            return Ok(crate::models::AppSettings::default());
         }
 
-        fs::read_to_string(&settings_path)
-            .ok()
-            .and_then(|content| serde_json::from_str(&content).ok())
-            .unwrap_or_default()
+        let settings = Self::read_json(&settings_path, StorageFile::Settings)?;
+        Self::validate_settings(settings)
     }
 
     pub fn save_settings(
         &self,
         settings: &crate::models::AppSettings,
     ) -> Result<(), std::io::Error> {
-        let settings_path = self.file_path.with_file_name("settings.json");
+        let settings_path = self.settings_path();
         let content = serde_json::to_string_pretty(settings)?;
         Self::atomic_write(&settings_path, content.as_bytes())
+    }
+
+    pub fn storage_status(&self) -> StorageStatus {
+        let data_issue = self.data_issue();
+        let settings_issue = self.settings_issue();
+        let newest_valid_backup = self.newest_valid_backup();
+
+        let has_encrypted_secrets = if data_issue.is_none() && self.file_path.exists() {
+            Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data)
+                .map(|nodes| Self::has_encrypted_secrets(&nodes))
+                .unwrap_or(false)
+        } else {
+            newest_valid_backup
+                .as_ref()
+                .and_then(|backup| self.read_backup(&backup.filename).ok())
+                .map(|nodes| Self::has_encrypted_secrets(&nodes))
+                .unwrap_or(false)
+        } || (data_issue.is_some() && settings_issue.is_some());
+
+        StorageStatus {
+            data_issue,
+            settings_issue,
+            newest_valid_backup,
+            has_encrypted_secrets,
+        }
+    }
+
+    pub fn has_storage_issues(&self) -> bool {
+        self.data_issue().is_some() || self.settings_issue().is_some()
+    }
+
+    pub fn reset_invalid_data(&self) -> Result<String, String> {
+        Self::require_invalid_issue(self.data_issue(), StorageFile::Data)?;
+        let quarantined = self.quarantine_file(&self.file_path, "sklad")?;
+        self.save_data(&Self::default_nodes())
+            .map_err(|error| format!("Failed to create fresh data: {}", error))?;
+        Ok(quarantined)
+    }
+
+    pub fn reset_invalid_settings(&self) -> Result<String, String> {
+        Self::require_invalid_issue(self.settings_issue(), StorageFile::Settings)?;
+        let settings_path = self.settings_path();
+        let quarantined = self.quarantine_file(&settings_path, "settings")?;
+        self.save_settings(&crate::models::AppSettings::default())
+            .map_err(|error| format!("Failed to create fresh settings: {}", error))?;
+        Ok(quarantined)
     }
 
     pub fn create_backup(&self) -> Result<(), std::io::Error> {
         if !self.file_path.exists() {
             return Ok(());
         }
+
+        let content = fs::read(&self.file_path)?;
+        serde_json::from_slice::<Vec<Node>>(&content).map_err(|error| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Cannot back up invalid sklad.json (line {}, column {})",
+                    error.line(),
+                    error.column()
+                ),
+            )
+        })?;
 
         let mut timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -94,7 +239,6 @@ impl DataManager {
             timestamp += 1;
         };
 
-        let content = fs::read(&self.file_path)?;
         Self::atomic_write(&backup_path, &content)?;
 
         log::info!("Created backup: {:?}", backup_path);
@@ -154,6 +298,12 @@ impl DataManager {
         backups
     }
 
+    pub fn newest_valid_backup(&self) -> Option<BackupInfo> {
+        self.list_backups()
+            .into_iter()
+            .find(|backup| self.read_backup(&backup.filename).is_ok())
+    }
+
     pub fn restore_backup(&self, filename: &str) -> Result<(), String> {
         if Self::backup_timestamp(filename).is_none()
             || filename.contains('/')
@@ -169,14 +319,28 @@ impl DataManager {
         }
 
         let content =
-            fs::read(&backup_path).map_err(|e| format!("Failed to read backup: {}", e))?;
+            fs::read(&backup_path).map_err(|error| format!("Failed to read backup: {}", error))?;
 
-        serde_json::from_slice::<Vec<Node>>(&content)
-            .map_err(|e| format!("Invalid backup format: {}", e))?;
+        serde_json::from_slice::<Vec<Node>>(&content).map_err(|error| {
+            format!(
+                "Invalid backup format at line {}, column {}",
+                error.line(),
+                error.column()
+            )
+        })?;
 
         if self.file_path.exists() {
-            self.create_backup()
-                .map_err(|e| format!("Failed to preserve current data: {}", e))?;
+            match Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data) {
+                Ok(_) => self
+                    .create_backup()
+                    .map_err(|e| format!("Failed to preserve current data: {}", e))?,
+                Err(issue) if issue.kind == StorageIssueKind::InvalidFormat => {
+                    self.quarantine_file(&self.file_path, "sklad")?;
+                }
+                Err(issue) => {
+                    return Err(format!("Failed to preserve current data: {}", issue));
+                }
+            }
         }
 
         Self::atomic_write(&self.file_path, &content)
@@ -192,6 +356,123 @@ impl DataManager {
             .strip_suffix(".json")?
             .parse::<i64>()
             .ok()
+    }
+
+    fn settings_path(&self) -> PathBuf {
+        self.file_path.with_file_name("settings.json")
+    }
+
+    fn data_issue(&self) -> Option<StorageIssue> {
+        if !self.file_path.exists() {
+            return None;
+        }
+        Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data).err()
+    }
+
+    fn settings_issue(&self) -> Option<StorageIssue> {
+        let settings_path = self.settings_path();
+        if !settings_path.exists() {
+            return None;
+        }
+        self.load_settings().err()
+    }
+
+    fn read_json<T: DeserializeOwned>(
+        path: &Path,
+        storage_file: StorageFile,
+    ) -> Result<T, StorageIssue> {
+        let content =
+            fs::read(path).map_err(|error| StorageIssue::unreadable(storage_file, error))?;
+        serde_json::from_slice(&content).map_err(|error| StorageIssue::invalid(storage_file, error))
+    }
+
+    fn validate_settings(
+        settings: crate::models::AppSettings,
+    ) -> Result<crate::models::AppSettings, StorageIssue> {
+        if settings.security.master_password_enabled
+            && (settings.security.password_hash.is_none()
+                || settings.security.derivation_salt.is_none())
+        {
+            return Err(StorageIssue::invalid_reason(
+                StorageFile::Settings,
+                "Vault settings are incomplete",
+            ));
+        }
+
+        Ok(settings)
+    }
+
+    fn read_backup(&self, filename: &str) -> Result<Vec<Node>, String> {
+        if Self::backup_timestamp(filename).is_none()
+            || filename.contains('/')
+            || filename.contains('\\')
+        {
+            return Err("Invalid backup filename".to_string());
+        }
+
+        let content = fs::read(self.backups_dir.join(filename))
+            .map_err(|error| format!("Failed to read backup: {}", error))?;
+        serde_json::from_slice(&content).map_err(|error| {
+            format!(
+                "Invalid backup format at line {}, column {}",
+                error.line(),
+                error.column()
+            )
+        })
+    }
+
+    fn require_invalid_issue(
+        issue: Option<StorageIssue>,
+        storage_file: StorageFile,
+    ) -> Result<(), String> {
+        match issue {
+            Some(issue) if issue.kind == StorageIssueKind::InvalidFormat => Ok(()),
+            Some(issue) => Err(format!(
+                "{} cannot be quarantined automatically: {}",
+                issue.file_name, issue.reason
+            )),
+            None => Err(format!(
+                "{} is valid; recovery is not required",
+                storage_file.file_name()
+            )),
+        }
+    }
+
+    fn quarantine_file(&self, source: &Path, base_name: &str) -> Result<String, String> {
+        let content = fs::read(source)
+            .map_err(|error| format!("Failed to read file for quarantine: {}", error))?;
+        let mut timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        let quarantine_path = loop {
+            let candidate =
+                source.with_file_name(format!("{}.corrupt_{}.json", base_name, timestamp));
+            if !candidate.exists() {
+                break candidate;
+            }
+            timestamp += 1;
+        };
+
+        Self::atomic_write(&quarantine_path, &content)
+            .map_err(|error| format!("Failed to create quarantine copy: {}", error))?;
+
+        quarantine_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_owned)
+            .ok_or_else(|| "Failed to resolve quarantine filename".to_string())
+    }
+
+    fn has_encrypted_secrets(nodes: &[Node]) -> bool {
+        nodes.iter().any(|node| {
+            node.encrypted_value.is_some()
+                || node
+                    .children
+                    .as_deref()
+                    .is_some_and(Self::has_encrypted_secrets)
+        })
     }
 
     fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
@@ -246,8 +527,8 @@ impl DataManager {
 
 #[cfg(test)]
 mod tests {
-    use super::DataManager;
-    use crate::models::{Node, NodeType};
+    use super::{DataManager, StorageIssueKind};
+    use crate::models::{AppSettings, Node, NodeType};
 
     fn snippet(label: &str) -> Node {
         Node {
@@ -270,7 +551,7 @@ mod tests {
 
         manager.save_data(&[snippet("saved")]).unwrap();
 
-        assert_eq!(manager.load_data()[0].label, "saved");
+        assert_eq!(manager.load_data().unwrap()[0].label, "saved");
         let app_entries = std::fs::read_dir(manager.file_path.parent().unwrap()).unwrap();
         assert!(app_entries
             .filter_map(Result::ok)
@@ -302,7 +583,7 @@ mod tests {
 
         manager.restore_backup(&old_backup).unwrap();
 
-        assert_eq!(manager.load_data()[0].label, "old");
+        assert_eq!(manager.load_data().unwrap()[0].label, "old");
         let safety_backup = &manager.list_backups()[0];
         let safety_content =
             std::fs::read(manager.backups_dir.join(&safety_backup.filename)).unwrap();
@@ -320,8 +601,8 @@ mod tests {
 
         let error = manager.restore_backup("sklad_backup_123.json").unwrap_err();
 
-        assert!(error.starts_with("Invalid backup format:"));
-        assert_eq!(manager.load_data()[0].label, "current");
+        assert!(error.starts_with("Invalid backup format"));
+        assert_eq!(manager.load_data().unwrap()[0].label, "current");
     }
 
     #[test]
@@ -337,5 +618,211 @@ mod tests {
             manager.restore_backup("..\\sklad_backup_123.json"),
             Err("Invalid backup filename".to_string())
         );
+    }
+
+    #[test]
+    fn missing_data_is_initialized_as_a_first_run() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+
+        let nodes = manager.load_data().unwrap();
+
+        assert_eq!(nodes[0].label, "Welcome to Sklad");
+        assert!(manager.file_path.exists());
+    }
+
+    #[test]
+    fn invalid_data_is_reported_without_being_replaced() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let invalid_content = b"{not valid json";
+        std::fs::write(&manager.file_path, invalid_content).unwrap();
+
+        let issue = manager.load_data().unwrap_err();
+
+        assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
+        assert_eq!(std::fs::read(&manager.file_path).unwrap(), invalid_content);
+        assert!(manager.list_backups().is_empty());
+    }
+
+    #[test]
+    fn invalid_data_diagnostics_do_not_include_file_values() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let sensitive_marker = "do-not-log-this-value";
+        let content = format!(
+            r#"[{{"id":"1","type":"{}","label":"label","parentId":null,"createdAt":0}}]"#,
+            sensitive_marker
+        );
+        std::fs::write(&manager.file_path, content).unwrap();
+
+        let issue = manager.load_data().unwrap_err();
+
+        assert!(!issue.reason.contains(sensitive_marker));
+        assert!(!issue.to_string().contains(sensitive_marker));
+    }
+
+    #[test]
+    fn resetting_invalid_data_preserves_an_exact_quarantine_copy() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let invalid_content = b"[invalid data]";
+        std::fs::write(&manager.file_path, invalid_content).unwrap();
+
+        let quarantine_filename = manager.reset_invalid_data().unwrap();
+
+        let quarantine_path = manager.file_path.with_file_name(quarantine_filename);
+        assert_eq!(std::fs::read(quarantine_path).unwrap(), invalid_content);
+        assert_eq!(manager.load_data().unwrap()[0].label, "Welcome to Sklad");
+    }
+
+    #[test]
+    fn restore_quarantines_invalid_current_data_before_replacement() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let invalid_content = b"not json";
+        std::fs::write(&manager.file_path, invalid_content).unwrap();
+        let backup_filename = "sklad_backup_123.json";
+        let backup_content = serde_json::to_vec(&vec![snippet("recovered")]).unwrap();
+        std::fs::write(manager.backups_dir.join(backup_filename), backup_content).unwrap();
+
+        manager.restore_backup(backup_filename).unwrap();
+
+        assert_eq!(manager.load_data().unwrap()[0].label, "recovered");
+        let quarantine = std::fs::read_dir(manager.file_path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("sklad.corrupt_")
+            })
+            .unwrap();
+        assert_eq!(std::fs::read(quarantine.path()).unwrap(), invalid_content);
+    }
+
+    #[test]
+    fn newest_valid_backup_skips_a_newer_invalid_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::write(
+            manager.backups_dir.join("sklad_backup_123.json"),
+            serde_json::to_vec(&vec![snippet("valid")]).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(
+            manager.backups_dir.join("sklad_backup_124.json"),
+            b"invalid",
+        )
+        .unwrap();
+
+        let backup = manager.newest_valid_backup().unwrap();
+
+        assert_eq!(backup.filename, "sklad_backup_123.json");
+    }
+
+    #[test]
+    fn invalid_data_is_not_copied_into_normal_backups() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::write(&manager.file_path, b"invalid").unwrap();
+
+        let error = manager.create_backup().unwrap_err();
+
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        assert!(manager.list_backups().is_empty());
+    }
+
+    #[test]
+    fn older_settings_with_missing_fields_remain_compatible() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::write(
+            manager.settings_path(),
+            br#"{
+                "theme":"dark",
+                "security":{
+                    "lockTimeout":300000,
+                    "clearClipboard":false,
+                    "masterPasswordEnabled":false,
+                    "passwordHash":null,
+                    "derivationSalt":null
+                },
+                "notificationsEnabled":true
+            }"#,
+        )
+        .unwrap();
+
+        let settings = manager.load_settings().unwrap();
+
+        assert_eq!(settings.theme, "dark");
+        assert!(!settings.security.master_password_enabled);
+        assert_eq!(settings.auto_backup_count, 5);
+    }
+
+    #[test]
+    fn incomplete_vault_settings_require_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::write(
+            manager.settings_path(),
+            br#"{
+                "theme":"dark",
+                "security":{
+                    "lockTimeout":300000,
+                    "clearClipboard":false,
+                    "masterPasswordEnabled":true,
+                    "passwordHash":"hash",
+                    "derivationSalt":null
+                },
+                "notificationsEnabled":true
+            }"#,
+        )
+        .unwrap();
+
+        let issue = manager.load_settings().unwrap_err();
+
+        assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
+        assert_eq!(issue.reason, "Vault settings are incomplete");
+    }
+
+    #[test]
+    fn resetting_invalid_settings_preserves_an_exact_quarantine_copy() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let invalid_content = b"{invalid settings";
+        std::fs::write(manager.settings_path(), invalid_content).unwrap();
+
+        let issue = manager.load_settings().unwrap_err();
+        assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
+        assert_eq!(
+            std::fs::read(manager.settings_path()).unwrap(),
+            invalid_content
+        );
+
+        let quarantine_filename = manager.reset_invalid_settings().unwrap();
+        let quarantine_path = manager.file_path.with_file_name(quarantine_filename);
+        assert_eq!(std::fs::read(quarantine_path).unwrap(), invalid_content);
+        assert_eq!(
+            manager.load_settings().unwrap().theme,
+            AppSettings::default().theme
+        );
+    }
+
+    #[test]
+    fn unreadable_data_is_not_replaced_by_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::create_dir(&manager.file_path).unwrap();
+
+        let status = manager.storage_status();
+
+        assert_eq!(
+            status.data_issue.unwrap().kind,
+            StorageIssueKind::Unreadable
+        );
+        assert!(manager.reset_invalid_data().is_err());
+        assert!(manager.file_path.is_dir());
     }
 }

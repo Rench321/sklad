@@ -42,7 +42,14 @@ pub fn run() {
                 .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         let data_manager = DataManager::new(app);
-                        let settings = data_manager.load_settings();
+                        if data_manager.has_storage_issues() {
+                            show_main_window(app);
+                            return;
+                        }
+                        let Ok(settings) = data_manager.load_settings() else {
+                            show_main_window(app);
+                            return;
+                        };
 
                         // Parse the shortcuts from settings to compare IDs
                         let search_shortcut = settings
@@ -91,13 +98,32 @@ pub fn run() {
             let data_manager = DataManager::new(handle);
 
             // Read settings, configure logging flag
-            let settings = data_manager.load_settings();
+            let settings_result = data_manager.load_settings();
+            let nodes_result = data_manager.load_data();
+            let storage_needs_recovery = settings_result.is_err() || nodes_result.is_err();
+
+            if let Err(issue) = &settings_result {
+                log::error!("Storage recovery required for {}", issue.file_name);
+            }
+            if let Err(issue) = &nodes_result {
+                log::error!("Storage recovery required for {}", issue.file_name);
+            }
+
+            let settings = settings_result.unwrap_or_else(|_| crate::models::AppSettings {
+                auto_backup_enabled: false,
+                ..Default::default()
+            });
             LOGGING_ENABLED.store(settings.logging_enabled, Ordering::Relaxed);
 
-            let nodes = data_manager.load_data();
-            let menu = TrayGenerator::generate_menu(handle, &nodes)?;
+            let nodes = nodes_result.unwrap_or_default();
+            let menu_nodes = if storage_needs_recovery {
+                &[][..]
+            } else {
+                nodes.as_slice()
+            };
+            let menu = TrayGenerator::generate_menu(handle, menu_nodes, &settings)?;
 
-            if settings.auto_backup_enabled {
+            if !storage_needs_recovery && settings.auto_backup_enabled {
                 if let Err(e) = data_manager.create_backup() {
                     log::error!("Failed to create startup backup: {}", e);
                 } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
@@ -172,7 +198,14 @@ pub fn run() {
                         let app = tray.app_handle();
 
                         let data_manager = DataManager::new(app);
-                        let settings = data_manager.load_settings();
+                        if data_manager.has_storage_issues() {
+                            show_main_window(app);
+                            return;
+                        }
+                        let Ok(settings) = data_manager.load_settings() else {
+                            show_main_window(app);
+                            return;
+                        };
                         log::info!(
                             "Tray left-clicked. Action configured: {}",
                             settings.tray_click_action
@@ -199,7 +232,7 @@ pub fn run() {
             let args: Vec<String> = env::args().collect();
             let start_minimized = args.contains(&"--minimized".to_string());
 
-            if !start_minimized {
+            if !start_minimized || storage_needs_recovery {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
@@ -207,11 +240,9 @@ pub fn run() {
             }
 
             // Register global shortcuts
-            let settings = data_manager.load_settings();
-
             use tauri_plugin_global_shortcut::GlobalShortcutExt;
             let shortcut_str = &settings.global_search_shortcut;
-            if !shortcut_str.is_empty() {
+            if !storage_needs_recovery && !shortcut_str.is_empty() {
                 match shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     Ok(shortcut) => {
                         if let Err(e) = app.global_shortcut().register(shortcut) {
@@ -229,7 +260,7 @@ pub fn run() {
             }
 
             let create_shortcut_str = &settings.global_create_shortcut;
-            if !create_shortcut_str.is_empty() {
+            if !storage_needs_recovery && !create_shortcut_str.is_empty() {
                 match create_shortcut_str.parse::<tauri_plugin_global_shortcut::Shortcut>() {
                     Ok(shortcut) => {
                         if let Err(e) = app.global_shortcut().register(shortcut) {
@@ -265,7 +296,11 @@ pub fn run() {
             commands::is_vault_unlocked,
             commands::create_backup,
             commands::get_backups,
-            commands::restore_backup
+            commands::restore_backup,
+            commands::get_storage_status,
+            commands::reset_corrupt_data,
+            commands::reset_corrupt_settings,
+            commands::open_data_directory
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -286,14 +321,15 @@ pub fn run() {
                     }
                 } else {
                     let data_manager = DataManager::new(app_handle);
-                    let settings = data_manager.load_settings();
-                    if settings.auto_backup_enabled {
-                        if let Err(e) = data_manager.create_backup() {
-                            log::error!("Failed to create backup on exit: {}", e);
-                        } else if let Err(e) =
-                            data_manager.rotate_backups(settings.auto_backup_count)
-                        {
-                            log::error!("Failed to rotate backups on exit: {}", e);
+                    if let Ok(settings) = data_manager.load_settings() {
+                        if settings.auto_backup_enabled {
+                            if let Err(e) = data_manager.create_backup() {
+                                log::error!("Failed to create backup on exit: {}", e);
+                            } else if let Err(e) =
+                                data_manager.rotate_backups(settings.auto_backup_count)
+                            {
+                                log::error!("Failed to rotate backups on exit: {}", e);
+                            }
                         }
                     }
                 }
@@ -322,12 +358,13 @@ pub fn run() {
         #[cfg(not(target_os = "macos"))]
         if let tauri::RunEvent::ExitRequested { .. } = _event {
             let data_manager = DataManager::new(_app_handle);
-            let settings = data_manager.load_settings();
-            if settings.auto_backup_enabled {
-                if let Err(e) = data_manager.create_backup() {
-                    log::error!("Failed to create backup on exit: {}", e);
-                } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
-                    log::error!("Failed to rotate backups on exit: {}", e);
+            if let Ok(settings) = data_manager.load_settings() {
+                if settings.auto_backup_enabled {
+                    if let Err(e) = data_manager.create_backup() {
+                        log::error!("Failed to create backup on exit: {}", e);
+                    } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
+                        log::error!("Failed to rotate backups on exit: {}", e);
+                    }
                 }
             }
         }
@@ -342,6 +379,11 @@ fn show_main_window(app: &tauri::AppHandle) {
 }
 
 fn handle_snippet_click(app: &tauri::AppHandle, id: String) {
+    if DataManager::new(app).has_storage_issues() {
+        show_main_window(app);
+        return;
+    }
+
     let vault_manager = app.state::<crate::security::VaultManager>();
 
     if let Err(e) = crate::commands::copy_snippet(app.clone(), vault_manager, id.clone()) {

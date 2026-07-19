@@ -3,6 +3,7 @@ import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { Node } from "@/types";
+import { routeToStorageRecovery } from "@/lib/storageRecovery";
 
 export function CreateWindow() {
     const [name, setName] = React.useState("");
@@ -34,10 +35,11 @@ export function CreateWindow() {
             });
         });
 
-        const unlistenFocus = window.onFocusChanged(({ payload: focused }) => {
+        const unlistenFocus = window.onFocusChanged(async ({ payload: focused }) => {
             if (!focused) {
                 window.hide();
             } else {
+                if (await routeToStorageRecovery()) return;
                 setName("");
                 setValue("");
                 setTimeout(() => {
@@ -98,6 +100,7 @@ export function CreateWindow() {
             setValue("");
         } catch (e) {
             console.error("Failed to save snippet", e);
+            await routeToStorageRecovery();
         } finally {
             setIsSaving(false);
         }

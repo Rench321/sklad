@@ -10,15 +10,20 @@ const SALT_SIZE: usize = 16;
 const ENCRYPTED_VALUE_SEPARATOR: char = ':';
 
 #[tauri::command]
-pub fn get_data(app: AppHandle, vault_manager: State<'_, VaultManager>) -> Vec<Node> {
+pub fn get_data(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+) -> Result<Vec<Node>, String> {
     let data_manager = DataManager::new(&app);
-    let mut nodes = data_manager.load_data();
+    let mut nodes = data_manager
+        .load_data()
+        .map_err(|error| error.to_string())?;
 
     if let VaultState::Unlocked(key) = &*vault_manager.state.lock().unwrap() {
         decrypt_nodes_recursive(&mut nodes, key);
     }
 
-    nodes
+    Ok(nodes)
 }
 
 #[tauri::command]
@@ -35,17 +40,20 @@ pub fn init_vault(
 
     let key = security::derive_key_from_password(&password, &salt);
 
-    *vault_manager.state.lock().unwrap() = VaultState::Unlocked(key);
-
     let data_manager = DataManager::new(&app);
-    let mut settings = data_manager.load_settings();
+    let mut settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
     settings.security.master_password_enabled = true;
     settings.security.password_hash = Some(hash);
     settings.security.derivation_salt = Some(salt);
 
     data_manager
         .save_settings(&settings)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    *vault_manager.state.lock().unwrap() = VaultState::Unlocked(key);
+    Ok(())
 }
 
 #[tauri::command]
@@ -55,7 +63,9 @@ pub fn unlock_vault(
     password: String,
 ) -> Result<bool, String> {
     let data_manager = DataManager::new(&app);
-    let settings = data_manager.load_settings();
+    let settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
 
     if let Some(hash) = &settings.security.password_hash {
         if !security::verify_password(&password, hash) {
@@ -142,6 +152,14 @@ pub fn save_data(
     vault_manager: State<'_, VaultManager>,
     mut nodes: Vec<Node>,
 ) -> Result<(), String> {
+    let data_manager = DataManager::new(&app);
+    data_manager
+        .load_data()
+        .map_err(|error| error.to_string())?;
+    let settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
+
     if has_plain_secrets(&nodes) {
         let state = vault_manager.state.lock().unwrap();
         match &*state {
@@ -150,10 +168,8 @@ pub fn save_data(
         }
     }
 
-    let data_manager = DataManager::new(&app);
     data_manager.save_data(&nodes).map_err(|e| e.to_string())?;
 
-    let settings = data_manager.load_settings();
     if settings.auto_backup_enabled {
         if let Err(e) = data_manager.create_backup() {
             log::error!("Failed to create backup after save: {}", e);
@@ -162,7 +178,7 @@ pub fn save_data(
         }
     }
 
-    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes)
+    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes, &settings)
         .map_err(|e| e.to_string())?;
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_menu(Some(menu));
@@ -178,7 +194,12 @@ pub fn copy_snippet<R: Runtime>(
     id: String,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    let nodes = data_manager.load_data();
+    let nodes = data_manager
+        .load_data()
+        .map_err(|error| error.to_string())?;
+    let settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
 
     let node = DataManager::find_node_by_id(&nodes, &id).ok_or("Snippet not found")?;
 
@@ -205,7 +226,6 @@ pub fn copy_snippet<R: Runtime>(
 
     *vault_manager.last_used_id.lock().unwrap() = Some(id);
 
-    let settings = data_manager.load_settings();
     if settings.notifications_enabled {
         let _ = app
             .notification()
@@ -219,8 +239,10 @@ pub fn copy_snippet<R: Runtime>(
 }
 
 #[tauri::command]
-pub fn get_settings(app: AppHandle) -> crate::models::AppSettings {
-    DataManager::new(&app).load_settings()
+pub fn get_settings(app: AppHandle) -> Result<crate::models::AppSettings, String> {
+    DataManager::new(&app)
+        .load_settings()
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -229,6 +251,17 @@ pub fn save_settings(
     vault_manager: State<'_, VaultManager>,
     settings: crate::models::AppSettings,
 ) -> Result<(), String> {
+    let data_manager = DataManager::new(&app);
+    data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
+    let nodes = data_manager
+        .load_data()
+        .map_err(|error| error.to_string())?;
+    data_manager
+        .save_settings(&settings)
+        .map_err(|e| format!("Failed to save settings: {}", e))?;
+
     if !settings.security.master_password_enabled {
         *vault_manager.state.lock().unwrap() = VaultState::Locked;
     }
@@ -283,13 +316,7 @@ pub fn save_settings(
         }
     }
 
-    let data_manager = DataManager::new(&app);
-    data_manager
-        .save_settings(&settings)
-        .map_err(|e| format!("Failed to save settings: {}", e))?;
-
-    let nodes = data_manager.load_data();
-    if let Ok(menu) = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes) {
+    if let Ok(menu) = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes, &settings) {
         if let Some(tray) = app.tray_by_id("main") {
             let _ = tray.set_menu(Some(menu));
         }
@@ -324,6 +351,20 @@ pub fn open_snippets_path(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_data_directory(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let data_manager = DataManager::new(&app);
+    let directory = data_manager
+        .file_path
+        .parent()
+        .ok_or_else(|| "Failed to resolve application data directory".to_string())?;
+    app.opener()
+        .open_path(directory.to_string_lossy(), None::<String>)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 pub fn open_app_logs_dir(app: AppHandle) -> Result<(), String> {
     use tauri::Manager;
     use tauri_plugin_opener::OpenerExt;
@@ -348,8 +389,12 @@ pub fn reset_vault(
     vault_manager: State<'_, VaultManager>,
 ) -> Result<(Vec<Node>, crate::models::AppSettings), String> {
     let data_manager = DataManager::new(&app);
-    let mut nodes = data_manager.load_data();
-    let mut settings = data_manager.load_settings();
+    let mut nodes = data_manager
+        .load_data()
+        .map_err(|error| error.to_string())?;
+    let mut settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
 
     remove_secrets_recursive(&mut nodes);
     settings.security.master_password_enabled = false;
@@ -376,7 +421,9 @@ fn remove_secrets_recursive(nodes: &mut Vec<Node>) {
 #[tauri::command]
 pub fn create_backup(app: AppHandle) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    let settings = data_manager.load_settings();
+    let settings = data_manager
+        .load_settings()
+        .map_err(|error| error.to_string())?;
 
     data_manager.create_backup().map_err(|e| e.to_string())?;
     data_manager
@@ -395,15 +442,64 @@ pub fn get_backups(app: AppHandle) -> Vec<crate::models::BackupInfo> {
 pub fn restore_backup(app: AppHandle, filename: String) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
     data_manager.restore_backup(&filename)?;
-
-    let nodes = data_manager.load_data();
-    let menu = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes)
-        .map_err(|e| e.to_string())?;
-    if let Some(tray) = app.tray_by_id("main") {
-        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
-    }
+    refresh_tray_from_storage(&app, &data_manager)?;
 
     app.emit("data-updated", ()).map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_storage_status(app: AppHandle) -> crate::data_manager::StorageStatus {
+    DataManager::new(&app).storage_status()
+}
+
+#[tauri::command]
+pub fn reset_corrupt_data(app: AppHandle) -> Result<String, String> {
+    let data_manager = DataManager::new(&app);
+    let quarantined = data_manager.reset_invalid_data()?;
+    refresh_tray_from_storage(&app, &data_manager)?;
+
+    app.emit("data-updated", ())
+        .map_err(|error| error.to_string())?;
+    Ok(quarantined)
+}
+
+#[tauri::command]
+pub fn reset_corrupt_settings(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+) -> Result<String, String> {
+    let data_manager = DataManager::new(&app);
+    let quarantined = data_manager.reset_invalid_settings()?;
+    *vault_manager.state.lock().unwrap() = VaultState::Locked;
+    crate::LOGGING_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let _ = app.global_shortcut().unregister_all();
+    refresh_tray_from_storage(&app, &data_manager)?;
+    Ok(quarantined)
+}
+
+fn refresh_tray_from_storage(app: &AppHandle, data_manager: &DataManager) -> Result<(), String> {
+    let settings_result = data_manager.load_settings();
+    let nodes_result = data_manager.load_data();
+    let storage_is_healthy = settings_result.is_ok() && nodes_result.is_ok();
+
+    let mut settings = settings_result.unwrap_or_default();
+    if !storage_is_healthy {
+        settings.auto_backup_enabled = false;
+    }
+    let nodes = nodes_result.unwrap_or_default();
+    let menu_nodes = if storage_is_healthy {
+        nodes.as_slice()
+    } else {
+        &[]
+    };
+    let menu = crate::tray_generator::TrayGenerator::generate_menu(app, menu_nodes, &settings)
+        .map_err(|error| error.to_string())?;
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_menu(Some(menu))
+            .map_err(|error| error.to_string())?;
+    }
     Ok(())
 }

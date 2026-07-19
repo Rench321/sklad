@@ -1,23 +1,22 @@
-use crate::models::{Node, NodeType};
+use crate::models::{AppSettings, Node, NodeType};
 use tauri::{
     menu::{Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
     AppHandle, Runtime,
 };
 
-use crate::data_manager::DataManager;
-
 pub struct TrayGenerator;
 
 impl TrayGenerator {
-    pub fn generate_menu<R: Runtime>(app: &AppHandle<R>, nodes: &[Node]) -> tauri::Result<Menu<R>> {
+    pub fn generate_menu<R: Runtime>(
+        app: &AppHandle<R>,
+        nodes: &[Node],
+        settings: &AppSettings,
+    ) -> tauri::Result<Menu<R>> {
         log::info!(
             "Generating tray menu. Received {} top-level nodes.",
             nodes.len()
         );
         let mut menu_builder = MenuBuilder::new(app);
-
-        let data_manager = DataManager::new(app);
-        let settings = data_manager.load_settings();
 
         let is_top = settings.tray_menu_root_position == "top";
 
