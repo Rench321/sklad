@@ -132,7 +132,7 @@ fn has_plain_secrets(nodes: &[Node]) -> bool {
         let is_plain_secret = matches!(n.node_type, NodeType::Snippet)
             && n.is_secret.unwrap_or(false)
             && n.value.is_some();
-        is_plain_secret || n.children.as_ref().map_or(false, |c| has_plain_secrets(c))
+        is_plain_secret || n.children.as_deref().is_some_and(has_plain_secrets)
     })
 }
 

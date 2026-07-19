@@ -41,7 +41,7 @@ pub fn run() {
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
-                        let data_manager = DataManager::new(&app);
+                        let data_manager = DataManager::new(app);
                         let settings = data_manager.load_settings();
 
                         // Parse the shortcuts from settings to compare IDs
@@ -285,7 +285,7 @@ pub fn run() {
                         let _ = window.hide();
                     }
                 } else {
-                    let data_manager = DataManager::new(&app_handle);
+                    let data_manager = DataManager::new(app_handle);
                     let settings = data_manager.load_settings();
                     if settings.auto_backup_enabled {
                         if let Err(e) = data_manager.create_backup() {
@@ -320,19 +320,16 @@ pub fn run() {
         }
 
         #[cfg(not(target_os = "macos"))]
-        match _event {
-            tauri::RunEvent::ExitRequested { .. } => {
-                let data_manager = DataManager::new(&_app_handle);
-                let settings = data_manager.load_settings();
-                if settings.auto_backup_enabled {
-                    if let Err(e) = data_manager.create_backup() {
-                        log::error!("Failed to create backup on exit: {}", e);
-                    } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
-                        log::error!("Failed to rotate backups on exit: {}", e);
-                    }
+        if let tauri::RunEvent::ExitRequested { .. } = _event {
+            let data_manager = DataManager::new(_app_handle);
+            let settings = data_manager.load_settings();
+            if settings.auto_backup_enabled {
+                if let Err(e) = data_manager.create_backup() {
+                    log::error!("Failed to create backup on exit: {}", e);
+                } else if let Err(e) = data_manager.rotate_backups(settings.auto_backup_count) {
+                    log::error!("Failed to rotate backups on exit: {}", e);
                 }
             }
-            _ => {}
         }
     });
 }
