@@ -12,6 +12,7 @@ import { Node } from "@/types";
 import { FileText, Lock, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { routeToStorageRecovery } from "@/lib/storageRecovery";
 
 export function SearchWindow() {
     const [nodes, setNodes] = React.useState<Node[]>([]);
@@ -20,16 +21,20 @@ export function SearchWindow() {
     const inputRef = React.useRef<HTMLInputElement>(null);
 
     React.useEffect(() => {
-        const loadNodes = async () => {
-            const data = await api.getData();
-            setNodes(data || []);
+        const loadWindowData = async () => {
+            try {
+                if (await routeToStorageRecovery()) return;
+                const [data, settings] = await Promise.all([
+                    api.getData(),
+                    api.getSettings(),
+                ]);
+                setNodes(data || []);
+                setGlobalSearchAction(settings.globalSearchAction || 'copy');
+            } catch (error) {
+                console.error("Failed to load global search", error);
+            }
         };
-        const loadSettings = async () => {
-            const settings = await api.getSettings();
-            setGlobalSearchAction(settings.globalSearchAction || 'copy');
-        };
-        loadNodes();
-        loadSettings();
+        void loadWindowData();
     }, []);
 
     React.useEffect(() => {
@@ -60,6 +65,7 @@ export function SearchWindow() {
             if (!focused) {
                 window.hide();
             } else {
+                if (await routeToStorageRecovery()) return;
                 setSearchValue("");
                 const [data, settings] = await Promise.all([
                     api.getData(),
@@ -119,6 +125,7 @@ export function SearchWindow() {
             }
         } catch (e: any) {
             console.error("Failed to process snippet", e);
+            if (await routeToStorageRecovery()) return;
             if (e === "Vault is Locked") {
                 const mainWindow = await (await import("@tauri-apps/api/webviewWindow")).WebviewWindow.getByLabel("main");
                 if (mainWindow) {

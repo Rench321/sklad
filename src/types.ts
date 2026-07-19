@@ -6,6 +6,23 @@ export interface BackupInfo {
     size: number;
 }
 
+export type StorageFile = 'data' | 'settings';
+export type StorageIssueKind = 'invalid_format' | 'unreadable';
+
+export interface StorageIssue {
+    file: StorageFile;
+    kind: StorageIssueKind;
+    fileName: string;
+    reason: string;
+}
+
+export interface StorageStatus {
+    dataIssue: StorageIssue | null;
+    settingsIssue: StorageIssue | null;
+    newestValidBackup: BackupInfo | null;
+    hasEncryptedSecrets: boolean;
+}
+
 export interface Node {
     id: string;             // UUID v4
     type: NodeType;

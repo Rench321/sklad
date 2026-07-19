@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Node, AppSettings, BackupInfo } from "../types";
+import { Node, AppSettings, BackupInfo, StorageStatus } from "../types";
 
 export const api = {
     getData: (): Promise<Node[]> => invoke("get_data"),
@@ -33,5 +33,12 @@ export const api = {
     getBackups: (): Promise<BackupInfo[]> => invoke("get_backups"),
 
     restoreBackup: (filename: string): Promise<void> => invoke("restore_backup", { filename }),
-};
 
+    getStorageStatus: (): Promise<StorageStatus> => invoke("get_storage_status"),
+
+    resetCorruptData: (): Promise<string> => invoke("reset_corrupt_data"),
+
+    resetCorruptSettings: (): Promise<string> => invoke("reset_corrupt_settings"),
+
+    openDataDirectory: (): Promise<void> => invoke("open_data_directory"),
+};

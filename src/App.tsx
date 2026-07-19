@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useRef } from "react";
 import { Settings } from "@/components/Settings";
 import { UnsavedChangesModal } from "@/components/UnsavedChangesModal";
+import { StorageRecovery } from "@/components/StorageRecovery";
 import { api } from "@/lib/api";
 import {
   findNodeById,
@@ -19,7 +20,7 @@ import {
   insertNodeAtPosition,
   isDescendantOf,
 } from "@/lib/treeUtils";
-import { Node, AppSettings } from "@/types";
+import { Node, AppSettings, StorageStatus } from "@/types";
 import { Container, Search, Lock, Unlock, Settings as SettingsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ function App() {
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [pendingCopyAction, setPendingCopyAction] = useState<{
     id: string;
     autoHide: boolean;
@@ -84,6 +86,17 @@ function App() {
 
   const initializeApp = async () => {
     try {
+      const status = await api.getStorageStatus();
+      if (status.dataIssue || status.settingsIssue) {
+        setStorageStatus(status);
+        setNodes([]);
+        setSelectedNode(null);
+        setSettings(null);
+        setIsUnlocked(false);
+        setLoaded(true);
+        return;
+      }
+
       const [data, appSettings, unlocked] = await Promise.all([
         api.getData(),
         api.getSettings(),
@@ -93,11 +106,21 @@ function App() {
       const freshNodes = data ?? [];
       setNodes(freshNodes);
       setSettings(appSettings);
+      setStorageStatus(null);
       setIsUnlocked(unlocked);
       refreshSelectedNode(freshNodes);
       setLoaded(true);
     } catch (e) {
       console.error(e);
+      try {
+        const status = await api.getStorageStatus();
+        if (status.dataIssue || status.settingsIssue) {
+          setStorageStatus(status);
+          setSettings(null);
+        }
+      } catch (statusError) {
+        console.error("Failed to inspect storage", statusError);
+      }
       setLoaded(true);
     }
   };
@@ -121,6 +144,17 @@ function App() {
       refreshSelectedNode(freshNodes);
     } catch (e) {
       console.error(e);
+      try {
+        const status = await api.getStorageStatus();
+        if (status.dataIssue || status.settingsIssue) {
+          setStorageStatus(status);
+          setSettings(null);
+          setNodes([]);
+          setSelectedNode(null);
+        }
+      } catch (statusError) {
+        console.error("Failed to inspect storage", statusError);
+      }
     }
   };
 
@@ -336,6 +370,11 @@ function App() {
       unlistenPromise.then(unlisten => unlisten());
     };
   }, [selectedNode, settings]);
+
+  if (loaded && storageStatus && (storageStatus.dataIssue || storageStatus.settingsIssue)) {
+    return <StorageRecovery status={storageStatus} onRetry={initializeApp} />;
+  }
+
   if (!loaded || !settings) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
