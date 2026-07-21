@@ -909,6 +909,36 @@ mod tests {
         assert_eq!(settings.theme, "dark");
         assert!(!settings.security.master_password_enabled);
         assert_eq!(settings.auto_backup_count, 5);
+
+        manager.save_settings(&settings).unwrap();
+        let rewritten = std::fs::read_to_string(manager.settings_path()).unwrap();
+        assert!(!rewritten.contains("clearClipboard"));
+    }
+
+    #[test]
+    fn older_nodes_without_optional_secret_fields_remain_compatible() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        std::fs::write(
+            &manager.file_path,
+            br#"[{
+                "id":"legacy-id",
+                "type":"snippet",
+                "label":"Legacy snippet",
+                "parentId":null,
+                "createdAt":123,
+                "value":"legacy value"
+            }]"#,
+        )
+        .unwrap();
+
+        let nodes = manager.load_data().unwrap();
+
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].label, "Legacy snippet");
+        assert_eq!(nodes[0].value.as_deref(), Some("legacy value"));
+        assert!(nodes[0].encrypted_value.is_none());
+        assert!(nodes[0].is_secret.is_none());
     }
 
     #[test]

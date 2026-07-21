@@ -42,8 +42,6 @@ pub struct Node {
 pub struct AppSettingsSecurity {
     #[serde(rename = "lockTimeout")]
     pub lock_timeout: u32,
-    #[serde(rename = "clearClipboard")]
-    pub clear_clipboard: bool,
     #[serde(rename = "masterPasswordEnabled")]
     pub master_password_enabled: bool,
     #[serde(rename = "passwordHash")]
@@ -55,9 +53,8 @@ pub struct AppSettingsSecurity {
 impl Default for AppSettingsSecurity {
     fn default() -> Self {
         Self {
-            lock_timeout: 300000, // 5 minutes default
-            clear_clipboard: false,
-            master_password_enabled: false, // No password set yet on fresh install
+            lock_timeout: 300000,
+            master_password_enabled: false,
             password_hash: None,
             derivation_salt: None,
         }
