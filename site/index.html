@@ -54,7 +54,9 @@
           rel="noreferrer"
         >
           GitHub
-          <span aria-hidden="true">↗</span>
+          <svg aria-hidden="true" class="link-icon" viewBox="0 0 24 24">
+            <path d="M7 17 17 7M8 7h9v9" />
+          </svg>
         </a>
       </div>
     </header>
@@ -81,14 +83,18 @@
                 href="https://github.com/Rench321/sklad/releases/latest"
               >
                 Download latest release
-                <span aria-hidden="true">↓</span>
+                <svg aria-hidden="true" class="button-icon" viewBox="0 0 24 24">
+                  <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 21h14" />
+                </svg>
               </a>
               <a
                 class="button button-secondary"
                 href="https://github.com/Rench321/sklad"
               >
                 View source
-                <span aria-hidden="true">↗</span>
+                <svg aria-hidden="true" class="button-icon" viewBox="0 0 24 24">
+                  <path d="M7 17 17 7M8 7h9v9" />
+                </svg>
               </a>
             </div>
 
@@ -114,14 +120,24 @@
               />
             </div>
             <div class="visual-note visual-note-lock">
-              <span aria-hidden="true">◆</span>
+              <span class="visual-note-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="5" y="10" width="14" height="10" rx="2" />
+                  <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
+                </svg>
+              </span>
               <div>
                 <strong>AES-256-GCM</strong>
                 <small>Encrypted on your device</small>
               </div>
             </div>
             <div class="visual-note visual-note-speed">
-              <strong>⌘ / Ctrl</strong>
+              <strong class="shortcut-keys">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6Z" />
+                </svg>
+                <span>/ Ctrl</span>
+              </strong>
               <small>Global access</small>
             </div>
           </div>
@@ -151,32 +167,57 @@
           <div class="feature-grid">
             <article class="feature-card feature-card-wide">
               <span class="feature-number">01</span>
-              <div class="feature-icon" aria-hidden="true">⌕</div>
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <circle cx="11" cy="11" r="6" />
+                  <path d="m16 16 4 4" />
+                </svg>
+              </div>
               <h3>Find anything instantly</h3>
               <p>
                 Open global search from any application, find a snippet, and copy it
                 without breaking your flow.
               </p>
-              <div class="shortcut"><kbd>Ctrl</kbd><span>+</span><kbd>Space</kbd></div>
+              <div class="shortcut">
+                <kbd>Ctrl</kbd>
+                <span class="shortcut-separator" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12" /></svg>
+                </span>
+                <kbd>Space</kbd>
+              </div>
             </article>
 
             <article class="feature-card">
               <span class="feature-number">02</span>
-              <div class="feature-icon" aria-hidden="true">▣</div>
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect x="3" y="4" width="7" height="5" rx="1.5" />
+                  <rect x="14" y="15" width="7" height="5" rx="1.5" />
+                  <path d="M6.5 9v8.5H14M6.5 13h7.5" />
+                </svg>
+              </div>
               <h3>Nested organization</h3>
               <p>Keep growing collections readable with folders and drag-and-drop.</p>
             </article>
 
             <article class="feature-card">
               <span class="feature-number">03</span>
-              <div class="feature-icon" aria-hidden="true">✦</div>
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M6 3h8l4 4v14H6zM14 3v5h5M12 11v6M9 14h6" />
+                </svg>
+              </div>
               <h3>Instant creation</h3>
               <p>Capture a new snippet from anywhere with a configurable shortcut.</p>
             </article>
 
             <article class="feature-card">
               <span class="feature-number">04</span>
-              <div class="feature-icon" aria-hidden="true">↻</div>
+              <div class="feature-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M20 11a8 8 0 1 0-2.35 5.65M20 5v6h-6" />
+                </svg>
+              </div>
               <h3>Autosave and backups</h3>
               <p>Work naturally while Sklad keeps local recovery points for you.</p>
             </article>
@@ -238,7 +279,10 @@
               class="text-link"
               href="https://github.com/Rench321/sklad"
             >
-              Inspect the source code <span aria-hidden="true">↗</span>
+              Inspect the source code
+              <svg aria-hidden="true" class="link-icon" viewBox="0 0 24 24">
+                <path d="M7 17 17 7M8 7h9v9" />
+              </svg>
             </a>
           </div>
 
@@ -289,25 +333,47 @@
                 class="button button-primary"
                 href="https://github.com/Rench321/sklad/releases/latest"
               >
-                Open latest release <span aria-hidden="true">↗</span>
+                Open latest release
+                <svg aria-hidden="true" class="button-icon" viewBox="0 0 24 24">
+                  <path d="M7 17 17 7M8 7h9v9" />
+                </svg>
               </a>
             </div>
 
             <div class="platform-cards">
               <a href="https://github.com/Rench321/sklad/releases/latest">
-                <span class="platform-icon" aria-hidden="true">⊞</span>
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path class="fill-icon" d="M3 4.7 10.6 3.6v7.7H3zm8.6-1.2L21 2.2v9.1h-9.4zM3 12.7h7.6v7.7L3 19.3zm8.6 0H21v9.1l-9.4-1.3z" />
+                  </svg>
+                </span>
                 <span><strong>Windows</strong><small>.msi or .exe</small></span>
-                <b aria-hidden="true">→</b>
+                <span class="platform-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></svg>
+                </span>
               </a>
               <a href="https://github.com/Rench321/sklad/releases/latest">
-                <span class="platform-icon" aria-hidden="true">●</span>
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path class="fill-icon" d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.29-.05 2.2.71 2.96.77 1.13-.23 2.21-.89 3.42-.8 1.45.12 2.54.69 3.27 1.73-2.99 1.79-2.28 5.73.46 6.83-.55 1.45-1.27 2.89-2.11 4.44M12.03 7.25C11.88 5.1 13.63 3.33 15.64 3.16c.28 2.49-2.26 4.35-3.61 4.09" />
+                  </svg>
+                </span>
                 <span><strong>macOS</strong><small>Apple Silicon &amp; Intel</small></span>
-                <b aria-hidden="true">→</b>
+                <span class="platform-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></svg>
+                </span>
               </a>
               <a href="https://github.com/Rench321/sklad/releases/latest">
-                <span class="platform-icon" aria-hidden="true">◇</span>
+                <span class="platform-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <path d="m7 9 3 3-3 3M13 15h4" />
+                  </svg>
+                </span>
                 <span><strong>Linux</strong><small>.deb, .rpm or AppImage</small></span>
-                <b aria-hidden="true">→</b>
+                <span class="platform-arrow" aria-hidden="true">
+                  <svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></svg>
+                </span>
               </a>
             </div>
           </div>
@@ -327,28 +393,48 @@
           </div>
           <div class="faq-list">
             <details>
-              <summary>Does Sklad connect to the internet?<span>+</span></summary>
+              <summary>
+                Does Sklad connect to the internet?
+                <svg aria-hidden="true" class="faq-icon" viewBox="0 0 24 24">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </summary>
               <p>
                 No. The application is designed to work fully offline and does not
                 perform telemetry or update checks.
               </p>
             </details>
             <details>
-              <summary>Where is my data stored?<span>+</span></summary>
+              <summary>
+                Where is my data stored?
+                <svg aria-hidden="true" class="faq-icon" viewBox="0 0 24 24">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </summary>
               <p>
                 In your operating system's local application-data directory. Sklad can
                 open that location for you from Settings.
               </p>
             </details>
             <details>
-              <summary>Why does my OS show a warning?<span>+</span></summary>
+              <summary>
+                Why does my OS show a warning?
+                <svg aria-hidden="true" class="faq-icon" viewBox="0 0 24 24">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </summary>
               <p>
                 Current builds are not code-signed or notarized. The release notes
                 include platform-specific installation guidance.
               </p>
             </details>
             <details>
-              <summary>How do I know when an update is available?<span>+</span></summary>
+              <summary>
+                How do I know when an update is available?
+                <svg aria-hidden="true" class="faq-icon" viewBox="0 0 24 24">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </summary>
               <p>
                 Visit GitHub Releases or update through your package manager. Sklad
                 intentionally does not make network requests to check for updates.
