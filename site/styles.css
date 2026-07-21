@@ -159,14 +159,28 @@ summary {
 }
 
 .header-link {
+  display: inline-flex;
+  align-items: center;
   justify-self: end;
+  gap: 6px;
   color: var(--muted);
   font-size: 0.84rem;
   font-weight: 700;
 }
 
-.header-link span {
-  margin-left: 5px;
+.link-icon,
+.button-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.header-link .link-icon {
   color: var(--amber);
 }
 
@@ -261,7 +275,7 @@ h1 em {
   align-items: center;
   justify-content: center;
   min-height: 50px;
-  padding: 0 19px;
+  padding: 0 17px 0 19px;
   gap: 18px;
   border: 1px solid transparent;
   border-radius: 9px;
@@ -316,9 +330,14 @@ h1 em {
 }
 
 .platform-list li::before {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
   margin-right: 8px;
-  color: var(--amber);
-  content: "·";
+  border-radius: 50%;
+  background: var(--amber);
+  content: "";
+  vertical-align: 0.15em;
 }
 
 .hero-visual {
@@ -430,12 +449,38 @@ h1 em {
   color: var(--amber);
 }
 
+.visual-note-icon svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
 .visual-note-speed {
   right: -18px;
   bottom: 74px;
   flex-direction: column;
   align-items: flex-start;
   gap: 1px;
+}
+
+.shortcut-keys {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+}
+
+.shortcut-keys svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .trust-row {
@@ -614,6 +659,22 @@ h1 em {
   font-size: 0.75rem;
 }
 
+.shortcut-separator {
+  display: grid;
+  width: 12px;
+  height: 12px;
+  place-items: center;
+}
+
+.shortcut-separator svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
 kbd {
   padding: 5px 8px;
   border: 1px solid var(--line-dark);
@@ -727,6 +788,7 @@ kbd {
 
 .text-link {
   display: inline-flex;
+  align-items: center;
   gap: 10px;
   color: var(--amber);
   font-size: 0.85rem;
@@ -844,6 +906,22 @@ kbd {
   place-items: center;
 }
 
+.platform-icon svg,
+.platform-arrow svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.platform-icon .fill-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
 .platform-cards strong,
 .platform-cards small {
   display: block;
@@ -859,14 +937,18 @@ kbd {
   font-size: 0.68rem;
 }
 
-.platform-cards b {
+.platform-arrow {
   display: grid;
   width: 24px;
   height: 24px;
   transform: translateY(-1px);
   color: #9d9d94;
-  font-size: 0.82rem;
   place-items: center;
+}
+
+.platform-arrow svg {
+  width: 15px;
+  height: 15px;
 }
 
 .install-note {
@@ -922,14 +1004,19 @@ kbd {
   display: none;
 }
 
-.faq-list summary span {
+.faq-icon {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
   color: #a1680d;
-  font-size: 1.3rem;
-  font-weight: 400;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.6;
   transition: transform 160ms ease;
 }
 
-.faq-list details[open] summary span {
+.faq-list details[open] summary .faq-icon {
   transform: rotate(45deg);
 }
 
