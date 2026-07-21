@@ -97,25 +97,29 @@ pub fn run() {
             let handle = app.handle();
             let data_manager = DataManager::new(handle);
 
-            // Read settings, configure logging flag
-            let settings_result = data_manager.load_settings();
-            let nodes_result = data_manager.load_data();
-            let storage_needs_recovery = settings_result.is_err() || nodes_result.is_err();
+            // Check both files together before any first-run initialization can write to disk.
+            let storage_status = data_manager.storage_status();
+            let storage_needs_recovery =
+                storage_status.data_issue.is_some() || storage_status.settings_issue.is_some();
 
-            if let Err(issue) = &settings_result {
+            if let Some(issue) = &storage_status.settings_issue {
                 log::error!("Storage recovery required for {}", issue.file_name);
             }
-            if let Err(issue) = &nodes_result {
+            if let Some(issue) = &storage_status.data_issue {
                 log::error!("Storage recovery required for {}", issue.file_name);
             }
 
-            let settings = settings_result.unwrap_or_else(|_| crate::models::AppSettings {
-                auto_backup_enabled: false,
-                ..Default::default()
-            });
+            let mut settings = data_manager.load_settings().unwrap_or_default();
+            if storage_needs_recovery {
+                settings.auto_backup_enabled = false;
+            }
             LOGGING_ENABLED.store(settings.logging_enabled, Ordering::Relaxed);
 
-            let nodes = nodes_result.unwrap_or_default();
+            let nodes = if storage_needs_recovery {
+                Vec::new()
+            } else {
+                data_manager.load_data().unwrap_or_default()
+            };
             let menu_nodes = if storage_needs_recovery {
                 &[][..]
             } else {
@@ -300,6 +304,7 @@ pub fn run() {
             commands::get_storage_status,
             commands::reset_corrupt_data,
             commands::reset_corrupt_settings,
+            commands::discard_unrecoverable_vault_data,
             commands::open_data_directory
         ])
         .build(tauri::generate_context!())
@@ -321,7 +326,10 @@ pub fn run() {
                     }
                 } else {
                     let data_manager = DataManager::new(app_handle);
-                    if let Ok(settings) = data_manager.load_settings() {
+                    if !data_manager.has_storage_issues() {
+                        let Ok(settings) = data_manager.load_settings() else {
+                            return;
+                        };
                         if settings.auto_backup_enabled {
                             if let Err(e) = data_manager.create_backup() {
                                 log::error!("Failed to create backup on exit: {}", e);
@@ -358,7 +366,10 @@ pub fn run() {
         #[cfg(not(target_os = "macos"))]
         if let tauri::RunEvent::ExitRequested { .. } = _event {
             let data_manager = DataManager::new(_app_handle);
-            if let Ok(settings) = data_manager.load_settings() {
+            if !data_manager.has_storage_issues() {
+                let Ok(settings) = data_manager.load_settings() else {
+                    return;
+                };
                 if settings.auto_backup_enabled {
                     if let Err(e) = data_manager.create_backup() {
                         log::error!("Failed to create backup on exit: {}", e);

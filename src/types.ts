@@ -7,7 +7,7 @@ export interface BackupInfo {
 }
 
 export type StorageFile = 'data' | 'settings';
-export type StorageIssueKind = 'invalid_format' | 'unreadable';
+export type StorageIssueKind = 'invalid_format' | 'unreadable' | 'vault_metadata';
 
 export interface StorageIssue {
     file: StorageFile;
@@ -21,6 +21,13 @@ export interface StorageStatus {
     settingsIssue: StorageIssue | null;
     newestValidBackup: BackupInfo | null;
     hasEncryptedSecrets: boolean;
+}
+
+export interface VaultRecoveryResult {
+    removedSecretCount: number;
+    dataRecoveryCopy: string | null;
+    settingsRecoveryCopy: string | null;
+    restoredFromBackup: string | null;
 }
 
 export interface Node {

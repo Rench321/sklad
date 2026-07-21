@@ -27,6 +27,7 @@ impl StorageFile {
 pub enum StorageIssueKind {
     InvalidFormat,
     Unreadable,
+    VaultMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -69,6 +70,15 @@ impl StorageIssue {
             reason: reason.into(),
         }
     }
+
+    fn vault_metadata(reason: impl Into<String>) -> Self {
+        Self {
+            file: StorageFile::Settings,
+            kind: StorageIssueKind::VaultMetadata,
+            file_name: StorageFile::Settings.file_name().to_string(),
+            reason: reason.into(),
+        }
+    }
 }
 
 impl std::fmt::Display for StorageIssue {
@@ -76,6 +86,7 @@ impl std::fmt::Display for StorageIssue {
         let description = match self.kind {
             StorageIssueKind::InvalidFormat => "has an invalid format",
             StorageIssueKind::Unreadable => "could not be read",
+            StorageIssueKind::VaultMetadata => "has missing or inconsistent vault metadata",
         };
         write!(
             formatter,
@@ -92,6 +103,15 @@ pub struct StorageStatus {
     pub settings_issue: Option<StorageIssue>,
     pub newest_valid_backup: Option<BackupInfo>,
     pub has_encrypted_secrets: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultRecoveryResult {
+    pub removed_secret_count: usize,
+    pub data_recovery_copy: Option<String>,
+    pub settings_recovery_copy: Option<String>,
+    pub restored_from_backup: Option<String>,
 }
 
 pub struct DataManager {
@@ -163,7 +183,7 @@ impl DataManager {
 
     pub fn storage_status(&self) -> StorageStatus {
         let data_issue = self.data_issue();
-        let settings_issue = self.settings_issue();
+        let mut settings_issue = self.settings_issue();
         let newest_valid_backup = self.newest_valid_backup();
 
         let has_encrypted_secrets = if data_issue.is_none() && self.file_path.exists() {
@@ -178,6 +198,21 @@ impl DataManager {
                 .unwrap_or(false)
         } || (data_issue.is_some() && settings_issue.is_some());
 
+        if settings_issue.is_none() && has_encrypted_secrets {
+            if !self.settings_path().exists() {
+                settings_issue = Some(StorageIssue::vault_metadata(
+                    "Encrypted snippets exist, but settings.json is missing",
+                ));
+            } else if self
+                .load_settings()
+                .is_ok_and(|settings| !settings.security.master_password_enabled)
+            {
+                settings_issue = Some(StorageIssue::vault_metadata(
+                    "Encrypted snippets exist, but the vault is disabled in settings.json",
+                ));
+            }
+        }
+
         StorageStatus {
             data_issue,
             settings_issue,
@@ -187,7 +222,16 @@ impl DataManager {
     }
 
     pub fn has_storage_issues(&self) -> bool {
-        self.data_issue().is_some() || self.settings_issue().is_some()
+        let status = self.storage_status();
+        status.data_issue.is_some() || status.settings_issue.is_some()
+    }
+
+    pub fn ensure_storage_healthy(&self) -> Result<(), String> {
+        let status = self.storage_status();
+        status
+            .data_issue
+            .or(status.settings_issue)
+            .map_or(Ok(()), |issue| Err(issue.to_string()))
     }
 
     pub fn reset_invalid_data(&self) -> Result<String, String> {
@@ -199,12 +243,81 @@ impl DataManager {
     }
 
     pub fn reset_invalid_settings(&self) -> Result<String, String> {
-        Self::require_invalid_issue(self.settings_issue(), StorageFile::Settings)?;
+        let status = self.storage_status();
+        if status.has_encrypted_secrets {
+            return Err(
+                "Encrypted snippets may depend on these settings; use vault recovery instead"
+                    .to_string(),
+            );
+        }
+        Self::require_invalid_issue(status.settings_issue, StorageFile::Settings)?;
         let settings_path = self.settings_path();
         let quarantined = self.quarantine_file(&settings_path, "settings")?;
         self.save_settings(&crate::models::AppSettings::default())
             .map_err(|error| format!("Failed to create fresh settings: {}", error))?;
         Ok(quarantined)
+    }
+
+    pub fn discard_unrecoverable_vault_data(&self) -> Result<VaultRecoveryResult, String> {
+        let status = self.storage_status();
+        if status.data_issue.is_some() {
+            return Err("Recover snippet data before resetting the unavailable vault".to_string());
+        }
+        if !status.has_encrypted_secrets {
+            return Err("No encrypted snippets require vault recovery".to_string());
+        }
+
+        let settings_issue = status
+            .settings_issue
+            .ok_or_else(|| "Vault metadata is healthy; recovery is not required".to_string())?;
+        if !matches!(
+            settings_issue.kind,
+            StorageIssueKind::InvalidFormat | StorageIssueKind::VaultMetadata
+        ) {
+            return Err(format!(
+                "{} cannot be recovered automatically: {}",
+                settings_issue.file_name, settings_issue.reason
+            ));
+        }
+
+        let (mut nodes, restored_from_backup) = if self.file_path.exists() {
+            (
+                Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data)
+                    .map_err(|issue| issue.to_string())?,
+                None,
+            )
+        } else {
+            let backup = status
+                .newest_valid_backup
+                .ok_or_else(|| "No valid snippet data is available for recovery".to_string())?;
+            let nodes = self.read_backup(&backup.filename)?;
+            (nodes, Some(backup.filename))
+        };
+
+        let removed_secret_count = Self::remove_unrecoverable_secrets(&mut nodes);
+        let data_recovery_copy = if self.file_path.exists() {
+            Some(self.preserve_file(&self.file_path, "sklad", "vault_recovery")?)
+        } else {
+            None
+        };
+        let settings_path = self.settings_path();
+        let settings_recovery_copy = if settings_path.exists() {
+            Some(self.preserve_file(&settings_path, "settings", "vault_recovery")?)
+        } else {
+            None
+        };
+
+        self.save_settings(&crate::models::AppSettings::default())
+            .map_err(|error| format!("Failed to reset vault settings: {}", error))?;
+        self.save_data(&nodes)
+            .map_err(|error| format!("Failed to save recovered snippet data: {}", error))?;
+
+        Ok(VaultRecoveryResult {
+            removed_secret_count,
+            data_recovery_copy,
+            settings_recovery_copy,
+            restored_from_backup,
+        })
     }
 
     pub fn create_backup(&self) -> Result<(), std::io::Error> {
@@ -439,8 +552,17 @@ impl DataManager {
     }
 
     fn quarantine_file(&self, source: &Path, base_name: &str) -> Result<String, String> {
+        self.preserve_file(source, base_name, "corrupt")
+    }
+
+    fn preserve_file(
+        &self,
+        source: &Path,
+        base_name: &str,
+        reason: &str,
+    ) -> Result<String, String> {
         let content = fs::read(source)
-            .map_err(|error| format!("Failed to read file for quarantine: {}", error))?;
+            .map_err(|error| format!("Failed to read source file for preservation: {}", error))?;
         let mut timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -448,7 +570,7 @@ impl DataManager {
 
         let quarantine_path = loop {
             let candidate =
-                source.with_file_name(format!("{}.corrupt_{}.json", base_name, timestamp));
+                source.with_file_name(format!("{}.{}_{}.json", base_name, reason, timestamp));
             if !candidate.exists() {
                 break candidate;
             }
@@ -456,7 +578,7 @@ impl DataManager {
         };
 
         Self::atomic_write(&quarantine_path, &content)
-            .map_err(|error| format!("Failed to create quarantine copy: {}", error))?;
+            .map_err(|error| format!("Failed to create recovery copy: {}", error))?;
 
         quarantine_path
             .file_name()
@@ -473,6 +595,20 @@ impl DataManager {
                     .as_deref()
                     .is_some_and(Self::has_encrypted_secrets)
         })
+    }
+
+    fn remove_unrecoverable_secrets(nodes: &mut Vec<Node>) -> usize {
+        let original_len = nodes.len();
+        nodes.retain(|node| !node.is_secret.unwrap_or(false) && node.encrypted_value.is_none());
+        let mut removed = original_len - nodes.len();
+
+        for node in nodes {
+            if let Some(children) = &mut node.children {
+                removed += Self::remove_unrecoverable_secrets(children);
+            }
+        }
+
+        removed
     }
 
     fn atomic_write(path: &Path, content: &[u8]) -> io::Result<()> {
@@ -541,6 +677,20 @@ mod tests {
             value: Some(label.to_string()),
             encrypted_value: None,
             is_secret: Some(false),
+        }
+    }
+
+    fn encrypted_snippet(label: &str) -> Node {
+        Node {
+            id: format!("{}-secret-id", label),
+            node_type: NodeType::Snippet,
+            label: label.to_string(),
+            parent_id: None,
+            created_at: 0,
+            children: None,
+            value: None,
+            encrypted_value: Some("nonce:ciphertext".to_string()),
+            is_secret: Some(true),
         }
     }
 
@@ -763,28 +913,173 @@ mod tests {
 
     #[test]
     fn incomplete_vault_settings_require_recovery() {
+        for (password_hash, derivation_salt) in [(None, Some("salt")), (Some("hash"), None)] {
+            let directory = tempfile::tempdir().unwrap();
+            let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+            let mut settings = AppSettings::default();
+            settings.security.master_password_enabled = true;
+            settings.security.password_hash = password_hash.map(str::to_string);
+            settings.security.derivation_salt = derivation_salt.map(str::to_string);
+            manager.save_settings(&settings).unwrap();
+
+            let issue = manager.load_settings().unwrap_err();
+
+            assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
+            assert_eq!(issue.reason, "Vault settings are incomplete");
+        }
+    }
+
+    #[test]
+    fn missing_settings_with_encrypted_data_requires_recovery_without_writing_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let original_data = serde_json::to_vec(&vec![encrypted_snippet("secret")]).unwrap();
+        std::fs::write(&manager.file_path, &original_data).unwrap();
+
+        let status = manager.storage_status();
+
+        let issue = status.settings_issue.unwrap();
+        assert_eq!(issue.kind, StorageIssueKind::VaultMetadata);
+        assert_eq!(std::fs::read(&manager.file_path).unwrap(), original_data);
+        assert!(!manager.settings_path().exists());
+        assert!(manager.has_storage_issues());
+    }
+
+    #[test]
+    fn missing_settings_with_an_encrypted_backup_requires_recovery_without_creating_data() {
         let directory = tempfile::tempdir().unwrap();
         let manager = DataManager::from_app_data_dir(directory.path().join("app"));
         std::fs::write(
-            manager.settings_path(),
-            br#"{
-                "theme":"dark",
-                "security":{
-                    "lockTimeout":300000,
-                    "clearClipboard":false,
-                    "masterPasswordEnabled":true,
-                    "passwordHash":"hash",
-                    "derivationSalt":null
-                },
-                "notificationsEnabled":true
-            }"#,
+            manager.backups_dir.join("sklad_backup_123.json"),
+            serde_json::to_vec(&vec![encrypted_snippet("backup-secret")]).unwrap(),
         )
         .unwrap();
 
-        let issue = manager.load_settings().unwrap_err();
+        let status = manager.storage_status();
 
-        assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
-        assert_eq!(issue.reason, "Vault settings are incomplete");
+        assert_eq!(
+            status.settings_issue.unwrap().kind,
+            StorageIssueKind::VaultMetadata
+        );
+        assert!(!manager.file_path.exists());
+        assert!(!manager.settings_path().exists());
+    }
+
+    #[test]
+    fn disabled_vault_with_encrypted_data_requires_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager
+            .save_data(&[encrypted_snippet("disabled-secret")])
+            .unwrap();
+        manager.save_settings(&AppSettings::default()).unwrap();
+
+        let status = manager.storage_status();
+
+        let issue = status.settings_issue.unwrap();
+        assert_eq!(issue.kind, StorageIssueKind::VaultMetadata);
+        assert!(issue.reason.contains("vault is disabled"));
+    }
+
+    #[test]
+    fn complete_enabled_vault_metadata_keeps_encrypted_data_healthy() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager
+            .save_data(&[encrypted_snippet("healthy-secret")])
+            .unwrap();
+        let mut settings = AppSettings::default();
+        settings.security.master_password_enabled = true;
+        settings.security.password_hash = Some("hash".to_string());
+        settings.security.derivation_salt = Some("salt".to_string());
+        manager.save_settings(&settings).unwrap();
+
+        let status = manager.storage_status();
+
+        assert!(status.data_issue.is_none());
+        assert!(status.settings_issue.is_none());
+        assert!(status.has_encrypted_secrets);
+        assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn vault_recovery_preserves_sources_and_removes_only_unavailable_secrets() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let mut inconsistent_secret = encrypted_snippet("inconsistent-secret");
+        inconsistent_secret.is_secret = Some(false);
+        let original_nodes = vec![
+            snippet("public"),
+            encrypted_snippet("secret"),
+            inconsistent_secret,
+        ];
+        let original_data = serde_json::to_vec_pretty(&original_nodes).unwrap();
+        std::fs::write(&manager.file_path, &original_data).unwrap();
+        let original_settings = serde_json::to_vec_pretty(&AppSettings::default()).unwrap();
+        std::fs::write(manager.settings_path(), &original_settings).unwrap();
+
+        let result = manager.discard_unrecoverable_vault_data().unwrap();
+
+        assert_eq!(result.removed_secret_count, 2);
+        assert!(result.restored_from_backup.is_none());
+        let data_copy = manager
+            .file_path
+            .with_file_name(result.data_recovery_copy.unwrap());
+        let settings_copy = manager
+            .file_path
+            .with_file_name(result.settings_recovery_copy.unwrap());
+        assert_eq!(std::fs::read(data_copy).unwrap(), original_data);
+        assert_eq!(std::fs::read(settings_copy).unwrap(), original_settings);
+        let recovered = manager.load_data().unwrap();
+        assert_eq!(recovered.len(), 1);
+        assert_eq!(recovered[0].label, "public");
+        assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn vault_recovery_can_keep_public_data_from_an_encrypted_backup() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let backup_filename = "sklad_backup_123.json";
+        let backup_content = serde_json::to_vec(&vec![
+            snippet("backup-public"),
+            encrypted_snippet("backup-secret"),
+        ])
+        .unwrap();
+        std::fs::write(manager.backups_dir.join(backup_filename), &backup_content).unwrap();
+
+        let result = manager.discard_unrecoverable_vault_data().unwrap();
+
+        assert_eq!(
+            result.restored_from_backup.as_deref(),
+            Some(backup_filename)
+        );
+        assert_eq!(result.removed_secret_count, 1);
+        assert_eq!(manager.load_data().unwrap()[0].label, "backup-public");
+        assert_eq!(
+            std::fs::read(manager.backups_dir.join(backup_filename)).unwrap(),
+            backup_content
+        );
+        assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn invalid_settings_with_encrypted_data_cannot_be_reset_without_vault_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager
+            .save_data(&[encrypted_snippet("protected")])
+            .unwrap();
+        let invalid_settings = b"{invalid settings";
+        std::fs::write(manager.settings_path(), invalid_settings).unwrap();
+
+        let error = manager.reset_invalid_settings().unwrap_err();
+
+        assert!(error.contains("use vault recovery"));
+        assert_eq!(
+            std::fs::read(manager.settings_path()).unwrap(),
+            invalid_settings
+        );
     }
 
     #[test]
