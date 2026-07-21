@@ -50,7 +50,6 @@ export interface AppSettings {
     theme: 'dark' | 'light' | 'system';
     security: {
         lockTimeout: number;
-        clearClipboard: boolean;
         masterPasswordEnabled: boolean;
     };
     loggingEnabled: boolean;
