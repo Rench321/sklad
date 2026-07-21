@@ -145,7 +145,7 @@ pub fn run() {
                     about_metadata.website = Some("https://github.com/Rench321/sklad".to_string());
                     about_metadata.website_label = Some("GitHub Repository".to_string());
                     about_metadata.comments =
-                        Some("Industrial-grade secure snippet warehouse".to_string());
+                        Some("Local-only, tray-first snippet manager".to_string());
 
                     if let Ok(about_item) =
                         PredefinedMenuItem::about(app.handle(), None, Some(about_metadata))
