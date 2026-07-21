@@ -545,6 +545,10 @@ h1 em {
   line-height: 0.98;
 }
 
+.download-copy h2 {
+  line-height: 1.08;
+}
+
 .section-heading > p,
 .demo-copy > p,
 .download-copy > p {
