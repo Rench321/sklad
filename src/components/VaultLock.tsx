@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,23 @@ export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 
     const [showOptions, setShowOptions] = useState(false);
     const [confirmReset, setConfirmReset] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [appVersion, setAppVersion] = useState<string | null>(null);
+
+    useEffect(() => {
+        let isActive = true;
+        void import("@tauri-apps/api/app")
+            .then(({ getVersion }) => getVersion())
+            .then((version) => {
+                if (isActive) setAppVersion(version);
+            })
+            .catch(() => {
+                if (isActive) setAppVersion(null);
+            });
+
+        return () => {
+            isActive = false;
+        };
+    }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -218,9 +235,11 @@ export function VaultLock({ onUnlock, onReset, onCancel, isInit = false, mode = 
             </Card>
 
             {/* Version indicator */}
-            <div className="absolute bottom-4 text-xs text-muted-foreground/40 font-mono">
-                SKLAD v0.2.1
-            </div>
+            {appVersion && (
+                <div className="absolute bottom-4 font-mono text-xs text-muted-foreground/40">
+                    SKLAD v{appVersion}
+                </div>
+            )}
         </div>
     );
 }
