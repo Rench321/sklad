@@ -3,22 +3,25 @@ import {
   ArchiveRestore,
   FileWarning,
   FolderOpen,
+  KeyRound,
   LoaderCircle,
   RefreshCw,
   RotateCcw,
   ShieldAlert,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { StorageIssue, StorageStatus } from "@/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface StorageRecoveryProps {
   status: StorageStatus;
   onRetry: () => Promise<void>;
 }
 
-type RecoveryAction = "restore" | "reset-data" | "reset-settings" | "retry" | "open";
-type Confirmation = "data" | "settings" | null;
+type RecoveryAction = "restore" | "reset-data" | "reset-settings" | "discard-vault" | "retry" | "open";
+type Confirmation = "data" | "settings" | "vault" | null;
 
 const actionClassName =
   "min-h-10 active:scale-[0.96] transition-[color,background-color,border-color,box-shadow,transform]";
@@ -31,22 +34,33 @@ function readableError(error: unknown): string {
 
 function IssueCard({ issue }: { issue: StorageIssue }) {
   const isInvalid = issue.kind === "invalid_format";
+  const isVaultMetadata = issue.kind === "vault_metadata";
 
   return (
     <section className="rounded-xl bg-muted/45 p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-          <FileWarning aria-hidden="true" className="size-5" />
+          {isVaultMetadata ? (
+            <KeyRound aria-hidden="true" className="size-5" />
+          ) : (
+            <FileWarning aria-hidden="true" className="size-5" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h2 className="font-mono text-sm font-semibold">{issue.fileName}</h2>
             <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-              {isInvalid ? "Invalid format" : "Unreadable"}
+              {isVaultMetadata
+                ? "Vault metadata"
+                : isInvalid
+                  ? "Invalid format"
+                  : "Unreadable"}
             </span>
           </div>
           <p className="mt-2 text-pretty text-sm leading-6 text-muted-foreground">
-            {isInvalid
+            {isVaultMetadata
+              ? "Sklad cannot safely unlock the encrypted snippets with the available settings. Normal access remains blocked and no files are changed automatically."
+              : isInvalid
               ? "The JSON or its expected structure is invalid. Sklad will not load or overwrite this file until you choose a recovery action."
               : "Sklad cannot safely read this file. Check its permissions or disk availability, then retry."}
           </p>
@@ -62,6 +76,7 @@ function IssueCard({ issue }: { issue: StorageIssue }) {
 export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   const [busyAction, setBusyAction] = useState<RecoveryAction | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
+  const [vaultConfirmation, setVaultConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -110,6 +125,26 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
       setNotice(`The original settings were preserved as ${quarantine}.`);
       await onRetry();
     });
+  };
+
+  const discardVaultData = () => {
+    void runAction("discard-vault", async () => {
+      const result = await api.discardUnrecoverableVaultData();
+      setConfirmation(null);
+      setVaultConfirmation("");
+      const source = result.restoredFromBackup
+        ? ` Public snippets were recovered from ${result.restoredFromBackup}.`
+        : "";
+      setNotice(
+        `${result.removedSecretCount} unavailable encrypted ${result.removedSecretCount === 1 ? "snippet was" : "snippets were"} removed.${source}`,
+      );
+      await onRetry();
+    });
+  };
+
+  const cancelConfirmation = () => {
+    setConfirmation(null);
+    setVaultConfirmation("");
   };
 
   const retry = () => {
@@ -182,7 +217,7 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
                   <Button
                     className={actionClassName}
                     disabled={isBusy}
-                    onClick={() => setConfirmation(null)}
+                    onClick={cancelConfirmation}
                     variant="outline"
                   >
                     Cancel
@@ -214,18 +249,12 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
           </section>
         )}
 
-        {status.settingsIssue?.kind === "invalid_format" && (
+        {status.settingsIssue?.kind === "invalid_format" && !status.hasEncryptedSecrets && (
           <section className="mt-5 rounded-xl bg-muted/35 p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07)]">
             <h2 className="text-sm font-semibold">Settings recovery</h2>
             <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
               Sklad does not currently back up settings. Resetting restores defaults only after preserving the damaged file.
             </p>
-            {status.hasEncryptedSecrets && (
-              <p className="mt-3 text-pretty rounded-lg bg-destructive/8 px-3 py-2 text-sm leading-6 text-destructive shadow-[0_0_0_1px_rgba(220,38,38,0.18)]">
-                Encrypted snippets were detected. Resetting settings can make them unavailable because the original password verifier and derivation salt are stored in this file.
-              </p>
-            )}
-
             {confirmation === "settings" ? (
               <div className="mt-4 rounded-lg bg-destructive/8 p-3 shadow-[0_0_0_1px_rgba(220,38,38,0.18)]">
                 <p className="text-pretty text-sm font-medium">
@@ -235,7 +264,7 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
                   <Button
                     className={actionClassName}
                     disabled={isBusy}
-                    onClick={() => setConfirmation(null)}
+                    onClick={cancelConfirmation}
                     variant="outline"
                   >
                     Cancel
@@ -266,6 +295,82 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
             )}
           </section>
         )}
+
+        {status.hasEncryptedSecrets &&
+          status.settingsIssue &&
+          (status.settingsIssue.kind === "vault_metadata" ||
+            status.settingsIssue.kind === "invalid_format") && (
+            <section className="mt-5 rounded-xl bg-destructive/6 p-4 shadow-[0_0_0_1px_rgba(220,38,38,0.16)]">
+              <h2 className="text-balance text-sm font-semibold">Unavailable vault recovery</h2>
+              {status.dataIssue ? (
+                <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+                  Recover the snippet file first. Sklad must be able to read it before it can preserve public snippets and remove encrypted ones safely.
+                </p>
+              ) : (
+                <>
+                  <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+                    The original vault cannot be unlocked safely from the available metadata. You can keep inspecting the files manually, or reset the vault and retain only readable public snippets.
+                  </p>
+                  <p className="mt-3 rounded-lg bg-background/65 px-3 py-2 text-pretty text-sm leading-6 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
+                    Before changing active data, Sklad preserves existing data and settings as recovery copies. Existing backups are left untouched.
+                  </p>
+
+                  {confirmation === "vault" ? (
+                    <div className="mt-4 rounded-lg bg-destructive/8 p-3 shadow-[0_0_0_1px_rgba(220,38,38,0.22)]">
+                      <p className="text-pretty text-sm font-medium">
+                        This permanently removes encrypted snippets from the active library and resets vault settings.
+                      </p>
+                      <label className="mt-3 block text-xs font-medium text-muted-foreground" htmlFor="vault-recovery-confirmation">
+                        Type <span className="font-mono text-foreground">DELETE</span> to confirm
+                      </label>
+                      <Input
+                        autoComplete="off"
+                        className="mt-2 min-h-10 font-mono"
+                        disabled={isBusy}
+                        id="vault-recovery-confirmation"
+                        onChange={(event) => setVaultConfirmation(event.target.value)}
+                        spellCheck={false}
+                        value={vaultConfirmation}
+                      />
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          className={actionClassName}
+                          disabled={isBusy}
+                          onClick={cancelConfirmation}
+                          variant="outline"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          className={actionClassName}
+                          disabled={isBusy || vaultConfirmation !== "DELETE"}
+                          onClick={discardVaultData}
+                          variant="destructive"
+                        >
+                          {busyAction === "discard-vault" ? (
+                            <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                          ) : (
+                            <Trash2 aria-hidden="true" />
+                          )}
+                          Remove encrypted snippets
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      className={`mt-3 ${actionClassName}`}
+                      disabled={isBusy}
+                      onClick={() => setConfirmation("vault")}
+                      variant="outline"
+                    >
+                      <Trash2 aria-hidden="true" />
+                      Reset unavailable vault
+                    </Button>
+                  )}
+                </>
+              )}
+            </section>
+          )}
 
         <div aria-live="polite" className="mt-5 min-h-5 text-sm">
           {error && <p className="text-pretty text-destructive">{error}</p>}

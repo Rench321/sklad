@@ -15,6 +15,7 @@ pub fn get_data(
     vault_manager: State<'_, VaultManager>,
 ) -> Result<Vec<Node>, String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let mut nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -32,6 +33,8 @@ pub fn init_vault(
     vault_manager: State<'_, VaultManager>,
     password: String,
 ) -> Result<(), String> {
+    let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let hash = security::hash_password(&password);
 
     let mut salt_bytes = [0u8; SALT_SIZE];
@@ -40,7 +43,6 @@ pub fn init_vault(
 
     let key = security::derive_key_from_password(&password, &salt);
 
-    let data_manager = DataManager::new(&app);
     let mut settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
@@ -63,23 +65,28 @@ pub fn unlock_vault(
     password: String,
 ) -> Result<bool, String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
 
-    if let Some(hash) = &settings.security.password_hash {
-        if !security::verify_password(&password, hash) {
-            return Ok(false);
-        }
-    } else if settings.security.master_password_enabled {
-        return Err("Security enabled but no password hash found. Please reset vault.".into());
+    if !settings.security.master_password_enabled {
+        return Err("Vault is not enabled".to_string());
     }
 
+    let hash = settings
+        .security
+        .password_hash
+        .as_deref()
+        .ok_or_else(|| "Vault password verifier is missing; open recovery mode".to_string())?;
+    if !security::verify_password(&password, hash) {
+        return Ok(false);
+    }
     let salt = settings
         .security
         .derivation_salt
         .as_deref()
-        .unwrap_or("default-salt");
+        .ok_or_else(|| "Vault derivation salt is missing; open recovery mode".to_string())?;
     let key = security::derive_key_from_password(&password, salt);
 
     *vault_manager.state.lock().unwrap() = VaultState::Unlocked(key);
@@ -153,12 +160,17 @@ pub fn save_data(
     mut nodes: Vec<Node>,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
     let settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
+
+    if !settings.security.master_password_enabled && has_encrypted_values(&nodes) {
+        return Err("Encrypted snippets require an enabled vault".to_string());
+    }
 
     if has_plain_secrets(&nodes) {
         let state = vault_manager.state.lock().unwrap();
@@ -194,6 +206,7 @@ pub fn copy_snippet<R: Runtime>(
     id: String,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -240,7 +253,9 @@ pub fn copy_snippet<R: Runtime>(
 
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<crate::models::AppSettings, String> {
-    DataManager::new(&app)
+    let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
+    data_manager
         .load_settings()
         .map_err(|error| error.to_string())
 }
@@ -252,12 +267,27 @@ pub fn save_settings(
     settings: crate::models::AppSettings,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
     let nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
+    if settings.security.master_password_enabled
+        && (settings.security.password_hash.is_none()
+            || settings.security.derivation_salt.is_none())
+    {
+        return Err(
+            "Enabled vault settings require a password verifier and derivation salt".to_string(),
+        );
+    }
+    if !settings.security.master_password_enabled && has_encrypted_values(&nodes) {
+        return Err(
+            "Disable the vault through Reset Vault so encrypted snippets are handled safely"
+                .to_string(),
+        );
+    }
     data_manager
         .save_settings(&settings)
         .map_err(|e| format!("Failed to save settings: {}", e))?;
@@ -389,6 +419,7 @@ pub fn reset_vault(
     vault_manager: State<'_, VaultManager>,
 ) -> Result<(Vec<Node>, crate::models::AppSettings), String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let mut nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -398,6 +429,8 @@ pub fn reset_vault(
 
     remove_secrets_recursive(&mut nodes);
     settings.security.master_password_enabled = false;
+    settings.security.password_hash = None;
+    settings.security.derivation_salt = None;
 
     data_manager.save_data(&nodes).map_err(|e| e.to_string())?;
     data_manager
@@ -410,7 +443,7 @@ pub fn reset_vault(
 }
 
 fn remove_secrets_recursive(nodes: &mut Vec<Node>) {
-    nodes.retain(|node| !node.is_secret.unwrap_or(false));
+    nodes.retain(|node| !node.is_secret.unwrap_or(false) && node.encrypted_value.is_none());
     for node in nodes.iter_mut() {
         if let Some(children) = &mut node.children {
             remove_secrets_recursive(children);
@@ -418,9 +451,16 @@ fn remove_secrets_recursive(nodes: &mut Vec<Node>) {
     }
 }
 
+fn has_encrypted_values(nodes: &[Node]) -> bool {
+    nodes.iter().any(|node| {
+        node.encrypted_value.is_some() || node.children.as_deref().is_some_and(has_encrypted_values)
+    })
+}
+
 #[tauri::command]
 pub fn create_backup(app: AppHandle) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
+    data_manager.ensure_storage_healthy()?;
     let settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
@@ -480,16 +520,40 @@ pub fn reset_corrupt_settings(
     Ok(quarantined)
 }
 
-fn refresh_tray_from_storage(app: &AppHandle, data_manager: &DataManager) -> Result<(), String> {
-    let settings_result = data_manager.load_settings();
-    let nodes_result = data_manager.load_data();
-    let storage_is_healthy = settings_result.is_ok() && nodes_result.is_ok();
+#[tauri::command]
+pub fn discard_unrecoverable_vault_data(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+) -> Result<crate::data_manager::VaultRecoveryResult, String> {
+    let data_manager = DataManager::new(&app);
+    let result = data_manager.discard_unrecoverable_vault_data()?;
+    *vault_manager.state.lock().unwrap() = VaultState::Locked;
+    crate::LOGGING_ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let _ = app.global_shortcut().unregister_all();
+    refresh_tray_from_storage(&app, &data_manager)?;
+    app.emit("data-updated", ())
+        .map_err(|error| error.to_string())?;
+    Ok(result)
+}
 
-    let mut settings = settings_result.unwrap_or_default();
+fn refresh_tray_from_storage(app: &AppHandle, data_manager: &DataManager) -> Result<(), String> {
+    let storage_is_healthy = !data_manager.has_storage_issues();
+    let (mut settings, nodes) = if storage_is_healthy {
+        (
+            data_manager
+                .load_settings()
+                .map_err(|error| error.to_string())?,
+            data_manager
+                .load_data()
+                .map_err(|error| error.to_string())?,
+        )
+    } else {
+        (crate::models::AppSettings::default(), Vec::new())
+    };
     if !storage_is_healthy {
         settings.auto_backup_enabled = false;
     }
-    let nodes = nodes_result.unwrap_or_default();
     let menu_nodes = if storage_is_healthy {
         nodes.as_slice()
     } else {
