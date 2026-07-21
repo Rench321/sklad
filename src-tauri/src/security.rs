@@ -98,3 +98,64 @@ pub fn decrypt(ciphertext_hex: &str, nonce_hex: &str, key: &Key) -> Result<Strin
 
     String::from_utf8(plaintext).map_err(|_| "Invalid UTF-8".to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{decrypt, derive_key_from_password, encrypt, hash_password, verify_password};
+
+    const FIRST_SALT: &str = "0123456789abcdef";
+    const SECOND_SALT: &str = "fedcba9876543210";
+
+    #[test]
+    fn password_hash_accepts_only_the_original_password() {
+        let hash = hash_password("correct horse battery staple");
+
+        assert!(verify_password("correct horse battery staple", &hash));
+        assert!(!verify_password("wrong password", &hash));
+        assert!(!verify_password(
+            "correct horse battery staple",
+            "not-a-valid-hash"
+        ));
+    }
+
+    #[test]
+    fn key_derivation_is_stable_for_the_same_password_and_salt() {
+        let first = derive_key_from_password("master password", FIRST_SALT);
+        let repeated = derive_key_from_password("master password", FIRST_SALT);
+        let different_salt = derive_key_from_password("master password", SECOND_SALT);
+
+        assert_eq!(first, repeated);
+        assert_ne!(first, different_salt);
+    }
+
+    #[test]
+    fn encryption_round_trip_preserves_unicode_and_rejects_the_wrong_key() {
+        let key = derive_key_from_password("master password", FIRST_SALT);
+        let wrong_key = derive_key_from_password("wrong password", FIRST_SALT);
+        let plaintext = "секрет 🔐\nsecond line";
+
+        let (ciphertext, nonce) = encrypt(plaintext, &key).unwrap();
+
+        assert_eq!(nonce.len(), 24);
+        assert_ne!(ciphertext, hex::encode(plaintext));
+        assert_eq!(decrypt(&ciphertext, &nonce, &key).unwrap(), plaintext);
+        assert_eq!(
+            decrypt(&ciphertext, &nonce, &wrong_key),
+            Err("Decryption failed".to_string())
+        );
+    }
+
+    #[test]
+    fn decryption_rejects_invalid_hex_without_exposing_input() {
+        let key = derive_key_from_password("master password", FIRST_SALT);
+
+        assert_eq!(
+            decrypt("sensitive-invalid-value", "00", &key),
+            Err("Invalid ciphertext hex".to_string())
+        );
+        assert_eq!(
+            decrypt("00", "sensitive-invalid-nonce", &key),
+            Err("Invalid nonce hex".to_string())
+        );
+    }
+}
