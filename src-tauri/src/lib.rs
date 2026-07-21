@@ -32,9 +32,10 @@ pub fn run() {
         )
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = app.emit("single-instance", ());
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
+            if DataManager::new(app).has_storage_issues() {
+                show_storage_recovery(app);
+            } else {
+                show_main_window(app);
             }
         }))
         .plugin(
@@ -43,11 +44,11 @@ pub fn run() {
                     if event.state == tauri_plugin_global_shortcut::ShortcutState::Pressed {
                         let data_manager = DataManager::new(app);
                         if data_manager.has_storage_issues() {
-                            show_main_window(app);
+                            show_storage_recovery(app);
                             return;
                         }
                         let Ok(settings) = data_manager.load_settings() else {
-                            show_main_window(app);
+                            show_storage_recovery(app);
                             return;
                         };
 
@@ -118,6 +119,9 @@ pub fn run() {
             let nodes = if storage_needs_recovery {
                 Vec::new()
             } else {
+                if let Err(error) = data_manager.ensure_vault_metadata_redundancy() {
+                    log::error!("Failed to add recoverable vault metadata: {}", error);
+                }
                 data_manager.load_data().unwrap_or_default()
             };
             let menu_nodes = if storage_needs_recovery {
@@ -188,7 +192,13 @@ pub fn run() {
                             log::info!("Quit menu item selected. Exiting app.");
                             app.exit(0);
                         }
-                        "open" => show_main_window(app),
+                        "open" => {
+                            if DataManager::new(app).has_storage_issues() {
+                                show_storage_recovery(app);
+                            } else {
+                                show_main_window(app);
+                            }
+                        }
                         snippet_id => handle_snippet_click(app, snippet_id.to_string()),
                     }
                 })
@@ -203,11 +213,11 @@ pub fn run() {
 
                         let data_manager = DataManager::new(app);
                         if data_manager.has_storage_issues() {
-                            show_main_window(app);
+                            show_storage_recovery(app);
                             return;
                         }
                         let Ok(settings) = data_manager.load_settings() else {
-                            show_main_window(app);
+                            show_storage_recovery(app);
                             return;
                         };
                         log::info!(
@@ -304,6 +314,7 @@ pub fn run() {
             commands::get_storage_status,
             commands::reset_corrupt_data,
             commands::reset_corrupt_settings,
+            commands::recover_vault_metadata,
             commands::discard_unrecoverable_vault_data,
             commands::open_data_directory
         ])
@@ -389,9 +400,14 @@ fn show_main_window(app: &tauri::AppHandle) {
     }
 }
 
+fn show_storage_recovery(app: &tauri::AppHandle) {
+    let _ = app.emit("storage-recovery-required", ());
+    show_main_window(app);
+}
+
 fn handle_snippet_click(app: &tauri::AppHandle, id: String) {
     if DataManager::new(app).has_storage_issues() {
-        show_main_window(app);
+        show_storage_recovery(app);
         return;
     }
 

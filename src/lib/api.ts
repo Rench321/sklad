@@ -40,6 +40,8 @@ export const api = {
 
     resetCorruptSettings: (): Promise<string> => invoke("reset_corrupt_settings"),
 
+    recoverVaultMetadata: (): Promise<string | null> => invoke("recover_vault_metadata"),
+
     discardUnrecoverableVaultData: (): Promise<VaultRecoveryResult> =>
         invoke("discard_unrecoverable_vault_data"),
 
