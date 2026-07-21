@@ -24,7 +24,22 @@ type RecoveryAction = "restore" | "reset-data" | "reset-settings" | "discard-vau
 type Confirmation = "data" | "settings" | "vault" | null;
 
 const actionClassName =
-  "min-h-10 active:scale-[0.96] transition-[color,background-color,border-color,box-shadow,transform]";
+  "min-h-10 max-w-full active:scale-[0.96] transition-[color,background-color,border-color,box-shadow,transform] max-sm:h-auto max-sm:min-h-11 max-sm:whitespace-normal";
+
+function formatBackupTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return "Unknown date";
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function backupDateTime(timestamp: number): string | undefined {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
 
 function readableError(error: unknown): string {
   if (typeof error === "string") return error;
@@ -48,7 +63,7 @@ function IssueCard({ issue }: { issue: StorageIssue }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h2 className="font-mono text-sm font-semibold">{issue.fileName}</h2>
+            <h2 className="break-words font-mono text-sm font-semibold">{issue.fileName}</h2>
             <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
               {isVaultMetadata
                 ? "Vault metadata"
@@ -64,7 +79,7 @@ function IssueCard({ issue }: { issue: StorageIssue }) {
               ? "The JSON or its expected structure is invalid. Sklad will not load or overwrite this file until you choose a recovery action."
               : "Sklad cannot safely read this file. Check its permissions or disk availability, then retry."}
           </p>
-          <code className="mt-3 block overflow-x-auto rounded-lg bg-background/75 px-3 py-2 font-mono text-xs leading-5 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
+          <code className="mt-3 block min-w-0 whitespace-pre-wrap break-words rounded-lg bg-background/75 px-3 py-2 font-mono text-xs leading-5 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
             {issue.reason}
           </code>
         </div>
@@ -156,8 +171,8 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   };
 
   return (
-    <main className="flex min-h-screen w-screen items-center justify-center overflow-auto bg-industrial p-6 text-foreground">
-      <div className="w-full max-w-2xl rounded-2xl bg-card p-6 shadow-xl ring-1 ring-black/5 dark:ring-white/10">
+    <main className="flex min-h-screen w-full min-w-0 items-center justify-center overflow-x-hidden overflow-y-auto bg-industrial p-4 text-foreground sm:p-6">
+      <div className="min-w-0 w-full max-w-2xl rounded-2xl bg-card p-5 shadow-xl ring-1 ring-black/5 sm:p-6 dark:ring-white/10">
         <header className="flex items-start gap-4">
           <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/12 text-primary shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             <ShieldAlert aria-hidden="true" className="size-6" />
@@ -186,21 +201,18 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
             {status.newestValidBackup ? (
               <>
                 <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-                  A valid backup is available: <span className="font-mono text-foreground">{status.newestValidBackup.filename}</span>.
+                  The newest valid backup was created on{" "}
+                  <time
+                    className="font-medium text-foreground"
+                    dateTime={backupDateTime(status.newestValidBackup.timestamp)}
+                  >
+                    {formatBackupTimestamp(status.newestValidBackup.timestamp)}
+                  </time>
+                  .
                 </p>
-                <Button
-                  className={`mt-3 ${actionClassName}`}
-                  disabled={isBusy}
-                  onClick={restoreBackup}
-                  size="lg"
-                >
-                  {busyAction === "restore" ? (
-                    <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                  ) : (
-                    <ArchiveRestore aria-hidden="true" />
-                  )}
-                  Restore newest valid backup
-                </Button>
+                <p className="mt-1 break-all font-mono text-xs leading-5 text-muted-foreground">
+                  {status.newestValidBackup.filename}
+                </p>
               </>
             ) : (
               <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
@@ -236,15 +248,31 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
                 </div>
               </div>
             ) : (
-              <Button
-                className={`mt-3 ${actionClassName}`}
-                disabled={isBusy}
-                onClick={() => setConfirmation("data")}
-                variant="outline"
-              >
-                <RotateCcw aria-hidden="true" />
-                Create fresh library
-              </Button>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {status.newestValidBackup && (
+                  <Button
+                    className={actionClassName}
+                    disabled={isBusy}
+                    onClick={restoreBackup}
+                  >
+                    {busyAction === "restore" ? (
+                      <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                    ) : (
+                      <ArchiveRestore aria-hidden="true" />
+                    )}
+                    Restore newest valid backup
+                  </Button>
+                )}
+                <Button
+                  className={actionClassName}
+                  disabled={isBusy}
+                  onClick={() => setConfirmation("data")}
+                  variant="outline"
+                >
+                  <RotateCcw aria-hidden="true" />
+                  Create fresh library
+                </Button>
+              </div>
             )}
           </section>
         )}
