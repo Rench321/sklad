@@ -140,18 +140,15 @@ export function SearchWindow() {
 
     return (
         <div className="flex flex-col h-screen w-screen bg-popover text-popover-foreground rounded-xl overflow-hidden shadow-2xl border border-border">
-            <Command className="flex-1 bg-transparent">
-                <div className="flex items-center px-4 border-b border-border/50">
-                    <Search className="w-5 h-5 text-muted-foreground mr-3" />
-                    <CommandInput
-                        ref={inputRef}
-                        value={searchValue}
-                        onValueChange={setSearchValue}
-                        placeholder="Search snippets..."
-                        className="h-14 border-0 focus:ring-0 text-lg flex-1 bg-transparent outline-none"
-                        autoFocus
-                    />
-                </div>
+            <Command className="flex-1 bg-transparent [&_[cmdk-input-wrapper]]:border-border/50 [&_[cmdk-input-wrapper]]:px-4 [&_[cmdk-input-wrapper]_svg]:mr-3 [&_[cmdk-input-wrapper]_svg]:size-5">
+                <CommandInput
+                    ref={inputRef}
+                    value={searchValue}
+                    onValueChange={setSearchValue}
+                    placeholder="Search snippets..."
+                    className="h-14 border-0 focus:ring-0 text-lg flex-1 bg-transparent outline-none"
+                    autoFocus
+                />
                 <CommandList className="flex-1 overflow-y-auto max-h-[340px] p-2">
                     <CommandEmpty className="py-12 text-center text-muted-foreground">
                         <div className="flex flex-col items-center justify-center gap-3">

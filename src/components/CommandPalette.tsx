@@ -49,13 +49,10 @@ export function CommandPalette({ nodes, onSelect }: CommandPaletteProps) {
 
     return (
         <CommandDialog open={open} onOpenChange={setOpen}>
-            <div className="flex items-center border-b border-border/50 px-3">
-                <Search className="w-4 h-4 text-muted-foreground mr-2" />
-                <CommandInput
-                    placeholder="Search snippets and folders..."
-                    className="border-0 focus:ring-0"
-                />
-            </div>
+            <CommandInput
+                placeholder="Search snippets and folders..."
+                className="border-0 focus:ring-0"
+            />
             <CommandList className="max-h-[400px]">
                 <CommandEmpty className="py-8 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
