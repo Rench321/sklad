@@ -1,8 +1,11 @@
 [package]
 name = "sklad"
-version = "0.2.2"
-description = "Tray Snippet Manager"
-authors = ["you"]
+version = "0.2.3"
+description = "Local-only, tray-first snippet manager"
+authors = ["Pavel (Rench321)"]
+homepage = "https://rench321.github.io/sklad/"
+repository = "https://github.com/Rench321/sklad"
+license = "MIT"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
