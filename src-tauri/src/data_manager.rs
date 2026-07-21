@@ -1,10 +1,70 @@
-use crate::models::{BackupInfo, Node};
-use serde::{de::DeserializeOwned, Serialize};
+use crate::models::{AppSettings, BackupInfo, Node};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 use tempfile::NamedTempFile;
+
+const DATA_FILE_VERSION: u32 = 1;
+const DERIVATION_SALT_BYTES: usize = 16;
+
+fn derivation_salt_is_valid(salt: &str) -> bool {
+    hex::decode(salt).is_ok_and(|bytes| bytes.len() == DERIVATION_SALT_BYTES)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultMetadata {
+    password_hash: String,
+    derivation_salt: String,
+}
+
+impl VaultMetadata {
+    fn from_settings(settings: &AppSettings) -> Option<Self> {
+        if !settings.security.master_password_enabled {
+            return None;
+        }
+
+        Some(Self {
+            password_hash: settings.security.password_hash.clone()?,
+            derivation_salt: settings.security.derivation_salt.clone()?,
+        })
+    }
+
+    fn apply_to_settings(&self, settings: &mut AppSettings) {
+        settings.security.master_password_enabled = true;
+        settings.security.password_hash = Some(self.password_hash.clone());
+        settings.security.derivation_salt = Some(self.derivation_salt.clone());
+    }
+
+    fn is_complete(&self) -> bool {
+        !self.password_hash.is_empty() && derivation_salt_is_valid(&self.derivation_salt)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct VersionedData {
+    version: u32,
+    nodes: Vec<Node>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    vault_metadata: Option<VaultMetadata>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum PersistedData {
+    Legacy(Vec<Node>),
+    Versioned(VersionedData),
+}
+
+#[derive(Debug, Clone)]
+struct DataContents {
+    nodes: Vec<Node>,
+    vault_metadata: Option<VaultMetadata>,
+    is_versioned: bool,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -102,7 +162,9 @@ pub struct StorageStatus {
     pub data_issue: Option<StorageIssue>,
     pub settings_issue: Option<StorageIssue>,
     pub newest_valid_backup: Option<BackupInfo>,
+    pub newest_vault_backup: Option<BackupInfo>,
     pub has_encrypted_secrets: bool,
+    pub vault_metadata_recoverable: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -154,12 +216,28 @@ impl DataManager {
             return Ok(defaults);
         }
 
-        Self::read_json(&self.file_path, StorageFile::Data)
+        Self::read_data_file(&self.file_path, StorageFile::Data).map(|contents| contents.nodes)
     }
 
     pub fn save_data(&self, nodes: &[Node]) -> Result<(), std::io::Error> {
-        let content = serde_json::to_string_pretty(nodes)?;
-        Self::atomic_write(&self.file_path, content.as_bytes())
+        let vault_metadata = if Self::has_encrypted_secrets(nodes) {
+            let settings = self.load_settings().map_err(|error| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Cannot save encrypted snippets: {}", error),
+                )
+            })?;
+            Some(VaultMetadata::from_settings(&settings).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Cannot save encrypted snippets without complete vault metadata",
+                )
+            })?)
+        } else {
+            None
+        };
+
+        self.save_data_with_metadata(nodes, vault_metadata.as_ref())
     }
 
     pub fn load_settings(&self) -> Result<crate::models::AppSettings, StorageIssue> {
@@ -177,48 +255,107 @@ impl DataManager {
         settings: &crate::models::AppSettings,
     ) -> Result<(), std::io::Error> {
         let settings_path = self.settings_path();
-        let content = serde_json::to_string_pretty(settings)?;
+        let validated = Self::validate_settings(settings.clone()).map_err(|issue| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Cannot save invalid settings: {}", issue.reason),
+            )
+        })?;
+        let content = serde_json::to_string_pretty(&validated)?;
         Self::atomic_write(&settings_path, content.as_bytes())
     }
 
     pub fn storage_status(&self) -> StorageStatus {
-        let data_issue = self.data_issue();
+        let active_data = if self.file_path.exists() {
+            Some(Self::read_data_file(&self.file_path, StorageFile::Data))
+        } else {
+            None
+        };
+        let data_issue = active_data
+            .as_ref()
+            .and_then(|result| result.as_ref().err().cloned());
         let mut settings_issue = self.settings_issue();
         let newest_valid_backup = self.newest_valid_backup();
+        let newest_vault_backup = self.newest_vault_backup();
 
-        let has_encrypted_secrets = if data_issue.is_none() && self.file_path.exists() {
-            Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data)
-                .map(|nodes| Self::has_encrypted_secrets(&nodes))
-                .unwrap_or(false)
-        } else {
-            newest_valid_backup
+        let active_contents = active_data.as_ref().and_then(|result| result.as_ref().ok());
+        let fallback_contents = if active_contents.is_none() {
+            newest_vault_backup
                 .as_ref()
+                .or(newest_valid_backup.as_ref())
                 .and_then(|backup| self.read_backup(&backup.filename).ok())
-                .map(|nodes| Self::has_encrypted_secrets(&nodes))
-                .unwrap_or(false)
-        } || (data_issue.is_some() && settings_issue.is_some());
+        } else {
+            None
+        };
+        let relevant_contents = active_contents.or(fallback_contents.as_ref());
+
+        let has_encrypted_secrets = relevant_contents
+            .is_some_and(|contents| Self::has_encrypted_secrets(&contents.nodes))
+            || (data_issue.is_some() && settings_issue.is_some());
+
+        let active_vault_metadata = active_contents
+            .filter(|contents| Self::has_encrypted_secrets(&contents.nodes))
+            .and_then(|contents| contents.vault_metadata.as_ref());
 
         if settings_issue.is_none() && has_encrypted_secrets {
             if !self.settings_path().exists() {
                 settings_issue = Some(StorageIssue::vault_metadata(
                     "Encrypted snippets exist, but settings.json is missing",
                 ));
-            } else if self
-                .load_settings()
-                .is_ok_and(|settings| !settings.security.master_password_enabled)
-            {
-                settings_issue = Some(StorageIssue::vault_metadata(
-                    "Encrypted snippets exist, but the vault is disabled in settings.json",
-                ));
+            } else if let Ok(settings) = self.load_settings() {
+                if !settings.security.master_password_enabled {
+                    settings_issue = Some(StorageIssue::vault_metadata(
+                        "Encrypted snippets exist, but the vault is disabled in settings.json",
+                    ));
+                } else if active_vault_metadata.is_some_and(|metadata| {
+                    VaultMetadata::from_settings(&settings).as_ref() != Some(metadata)
+                }) {
+                    settings_issue = Some(StorageIssue::vault_metadata(
+                        "Vault metadata in settings.json does not match the encrypted snippet data",
+                    ));
+                }
             }
         }
+
+        let vault_metadata_recoverable = data_issue.is_none()
+            && settings_issue.is_some()
+            && active_vault_metadata.is_some_and(VaultMetadata::is_complete);
 
         StorageStatus {
             data_issue,
             settings_issue,
             newest_valid_backup,
+            newest_vault_backup,
             has_encrypted_secrets,
+            vault_metadata_recoverable,
         }
+    }
+
+    pub fn ensure_vault_metadata_redundancy(&self) -> Result<bool, String> {
+        if !self.file_path.exists() {
+            return Ok(false);
+        }
+
+        let contents = Self::read_data_file(&self.file_path, StorageFile::Data)
+            .map_err(|issue| issue.to_string())?;
+        if !Self::has_encrypted_secrets(&contents.nodes) {
+            return Ok(false);
+        }
+
+        let settings = self.load_settings().map_err(|issue| issue.to_string())?;
+        let metadata = VaultMetadata::from_settings(&settings)
+            .ok_or_else(|| "Encrypted snippets require complete vault metadata".to_string())?;
+        if contents.is_versioned && contents.vault_metadata.as_ref() == Some(&metadata) {
+            return Ok(false);
+        }
+
+        if !contents.is_versioned {
+            self.preserve_file(&self.file_path, "sklad", "pre_metadata_migration")?;
+        }
+
+        self.save_data_with_metadata(&contents.nodes, Some(&metadata))
+            .map_err(|error| format!("Failed to make vault metadata recoverable: {}", error))?;
+        Ok(true)
     }
 
     pub fn has_storage_issues(&self) -> bool {
@@ -258,6 +395,48 @@ impl DataManager {
         Ok(quarantined)
     }
 
+    pub fn recover_vault_metadata(&self) -> Result<Option<String>, String> {
+        let status = self.storage_status();
+        if status.data_issue.is_some() {
+            return Err("Recover snippet data before restoring vault metadata".to_string());
+        }
+        if !status.vault_metadata_recoverable {
+            return Err("No recoverable vault metadata is available in sklad.json".to_string());
+        }
+
+        let contents = Self::read_data_file(&self.file_path, StorageFile::Data)
+            .map_err(|issue| issue.to_string())?;
+        let metadata = contents
+            .vault_metadata
+            .ok_or_else(|| "sklad.json does not contain vault recovery metadata".to_string())?;
+
+        let settings_path = self.settings_path();
+        let (mut settings, recovery_copy) = if settings_path.exists() {
+            let copy = self.preserve_file(&settings_path, "settings", "vault_recovery")?;
+            let settings = match self.load_settings() {
+                Ok(settings) => settings,
+                Err(issue) if issue.kind == StorageIssueKind::InvalidFormat => {
+                    AppSettings::default()
+                }
+                Err(issue) => {
+                    return Err(format!(
+                        "{} cannot be recovered automatically: {}",
+                        issue.file_name, issue.reason
+                    ));
+                }
+            };
+            (settings, Some(copy))
+        } else {
+            (AppSettings::default(), None)
+        };
+
+        metadata.apply_to_settings(&mut settings);
+        self.save_settings(&settings)
+            .map_err(|error| format!("Failed to restore vault settings: {}", error))?;
+
+        Ok(recovery_copy)
+    }
+
     pub fn discard_unrecoverable_vault_data(&self) -> Result<VaultRecoveryResult, String> {
         let status = self.storage_status();
         if status.data_issue.is_some() {
@@ -282,16 +461,17 @@ impl DataManager {
 
         let (mut nodes, restored_from_backup) = if self.file_path.exists() {
             (
-                Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data)
-                    .map_err(|issue| issue.to_string())?,
+                Self::read_data_file(&self.file_path, StorageFile::Data)
+                    .map_err(|issue| issue.to_string())?
+                    .nodes,
                 None,
             )
         } else {
             let backup = status
                 .newest_valid_backup
                 .ok_or_else(|| "No valid snippet data is available for recovery".to_string())?;
-            let nodes = self.read_backup(&backup.filename)?;
-            (nodes, Some(backup.filename))
+            let contents = self.read_backup(&backup.filename)?;
+            (contents.nodes, Some(backup.filename))
         };
 
         let removed_secret_count = Self::remove_unrecoverable_secrets(&mut nodes);
@@ -325,17 +505,35 @@ impl DataManager {
             return Ok(());
         }
 
-        let content = fs::read(&self.file_path)?;
-        serde_json::from_slice::<Vec<Node>>(&content).map_err(|error| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!(
-                    "Cannot back up invalid sklad.json (line {}, column {})",
-                    error.line(),
-                    error.column()
-                ),
-            )
-        })?;
+        let contents =
+            Self::read_data_file(&self.file_path, StorageFile::Data).map_err(|issue| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Cannot back up invalid sklad.json: {}", issue.reason),
+                )
+            })?;
+        let vault_metadata = if Self::has_encrypted_secrets(&contents.nodes) {
+            match contents.vault_metadata {
+                Some(metadata) => Some(metadata),
+                None => {
+                    let settings = self.load_settings().map_err(|issue| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            format!("Cannot back up encrypted snippets: {}", issue),
+                        )
+                    })?;
+                    Some(VaultMetadata::from_settings(&settings).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Cannot back up encrypted snippets without complete vault metadata",
+                        )
+                    })?)
+                }
+            }
+        } else {
+            None
+        };
+        let content = Self::serialize_data(&contents.nodes, vault_metadata.as_ref())?;
 
         let mut timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -401,6 +599,9 @@ impl DataManager {
                             filename: filename.to_string(),
                             timestamp,
                             size,
+                            has_vault_metadata: self
+                                .read_backup(filename)
+                                .is_ok_and(|contents| contents.vault_metadata.is_some()),
                         });
                     }
                 }
@@ -417,6 +618,14 @@ impl DataManager {
             .find(|backup| self.read_backup(&backup.filename).is_ok())
     }
 
+    pub fn newest_vault_backup(&self) -> Option<BackupInfo> {
+        self.list_backups().into_iter().find(|backup| {
+            self.read_backup(&backup.filename).is_ok_and(|contents| {
+                contents.vault_metadata.is_some() && Self::has_encrypted_secrets(&contents.nodes)
+            })
+        })
+    }
+
     pub fn restore_backup(&self, filename: &str) -> Result<(), String> {
         if Self::backup_timestamp(filename).is_none()
             || filename.contains('/')
@@ -431,22 +640,52 @@ impl DataManager {
             return Err("Backup file not found".to_string());
         }
 
-        let content =
-            fs::read(&backup_path).map_err(|error| format!("Failed to read backup: {}", error))?;
+        let mut backup = self.read_backup(filename)?;
+        if Self::has_encrypted_secrets(&backup.nodes) && backup.vault_metadata.is_none() {
+            let settings = self.load_settings().map_err(|issue| {
+                format!("This legacy backup needs the original settings: {}", issue)
+            })?;
+            backup.vault_metadata = Some(VaultMetadata::from_settings(&settings).ok_or_else(|| {
+                "This legacy backup contains encrypted snippets but no recoverable vault metadata"
+                    .to_string()
+            })?);
+        }
 
-        serde_json::from_slice::<Vec<Node>>(&content).map_err(|error| {
-            format!(
-                "Invalid backup format at line {}, column {}",
-                error.line(),
-                error.column()
-            )
-        })?;
+        let target_content = Self::serialize_data(&backup.nodes, backup.vault_metadata.as_ref())
+            .map_err(|error| format!("Failed to prepare backup restore: {}", error))?;
+
+        let target_settings = if let Some(metadata) = &backup.vault_metadata {
+            let mut settings = match self.load_settings() {
+                Ok(settings) => settings,
+                Err(issue) if issue.kind == StorageIssueKind::InvalidFormat => {
+                    AppSettings::default()
+                }
+                Err(issue) => {
+                    return Err(format!(
+                        "{} cannot be recovered automatically: {}",
+                        issue.file_name, issue.reason
+                    ));
+                }
+            };
+            metadata.apply_to_settings(&mut settings);
+            Some(settings)
+        } else {
+            None
+        };
 
         if self.file_path.exists() {
-            match Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data) {
-                Ok(_) => self
-                    .create_backup()
-                    .map_err(|e| format!("Failed to preserve current data: {}", e))?,
+            match Self::read_data_file(&self.file_path, StorageFile::Data) {
+                Ok(_) => {
+                    if let Err(error) = self.create_backup() {
+                        self.preserve_file(&self.file_path, "sklad", "before_restore")
+                            .map_err(|preserve_error| {
+                                format!(
+                                    "Failed to preserve current data: {}; {}",
+                                    error, preserve_error
+                                )
+                            })?;
+                    }
+                }
                 Err(issue) if issue.kind == StorageIssueKind::InvalidFormat => {
                     self.quarantine_file(&self.file_path, "sklad")?;
                 }
@@ -456,8 +695,24 @@ impl DataManager {
             }
         }
 
-        Self::atomic_write(&self.file_path, &content)
+        if target_settings.is_some() {
+            let settings_path = self.settings_path();
+            if settings_path.exists() {
+                self.preserve_file(&settings_path, "settings", "before_restore")?;
+            }
+        }
+
+        Self::atomic_write(&self.file_path, &target_content)
             .map_err(|e| format!("Failed to restore backup: {}", e))?;
+
+        if let Some(settings) = target_settings {
+            self.save_settings(&settings).map_err(|error| {
+                format!(
+                    "Data was restored, but vault settings need recovery: {}",
+                    error
+                )
+            })?;
+        }
 
         log::info!("Restored backup: {:?}", backup_path);
         Ok(())
@@ -479,7 +734,7 @@ impl DataManager {
         if !self.file_path.exists() {
             return None;
         }
-        Self::read_json::<Vec<Node>>(&self.file_path, StorageFile::Data).err()
+        Self::read_data_file(&self.file_path, StorageFile::Data).err()
     }
 
     fn settings_issue(&self) -> Option<StorageIssue> {
@@ -499,6 +754,87 @@ impl DataManager {
         serde_json::from_slice(&content).map_err(|error| StorageIssue::invalid(storage_file, error))
     }
 
+    fn read_data_file(
+        path: &Path,
+        storage_file: StorageFile,
+    ) -> Result<DataContents, StorageIssue> {
+        let content =
+            fs::read(path).map_err(|error| StorageIssue::unreadable(storage_file, error))?;
+        let persisted: PersistedData = serde_json::from_slice(&content)
+            .map_err(|error| StorageIssue::invalid(storage_file, error))?;
+
+        match persisted {
+            PersistedData::Legacy(nodes) => Ok(DataContents {
+                nodes,
+                vault_metadata: None,
+                is_versioned: false,
+            }),
+            PersistedData::Versioned(versioned) => {
+                if versioned.version != DATA_FILE_VERSION {
+                    return Err(StorageIssue::invalid_reason(
+                        storage_file,
+                        format!("Unsupported data format version {}", versioned.version),
+                    ));
+                }
+                if versioned
+                    .vault_metadata
+                    .as_ref()
+                    .is_some_and(|metadata| !metadata.is_complete())
+                {
+                    return Err(StorageIssue::invalid_reason(
+                        storage_file,
+                        "Embedded vault metadata is incomplete",
+                    ));
+                }
+                if Self::has_encrypted_secrets(&versioned.nodes)
+                    && versioned.vault_metadata.is_none()
+                {
+                    return Err(StorageIssue::invalid_reason(
+                        storage_file,
+                        "Versioned encrypted data is missing vault metadata",
+                    ));
+                }
+
+                Ok(DataContents {
+                    nodes: versioned.nodes,
+                    vault_metadata: versioned.vault_metadata,
+                    is_versioned: true,
+                })
+            }
+        }
+    }
+
+    fn serialize_data(
+        nodes: &[Node],
+        vault_metadata: Option<&VaultMetadata>,
+    ) -> Result<Vec<u8>, io::Error> {
+        if Self::has_encrypted_secrets(nodes) {
+            let metadata = vault_metadata.ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Encrypted snippets require embedded vault metadata",
+                )
+            })?;
+            serde_json::to_vec_pretty(&VersionedData {
+                version: DATA_FILE_VERSION,
+                nodes: nodes.to_vec(),
+                vault_metadata: Some(metadata.clone()),
+            })
+            .map_err(Into::into)
+        } else {
+            serde_json::to_vec_pretty(nodes).map_err(Into::into)
+        }
+    }
+
+    fn save_data_with_metadata(
+        &self,
+        nodes: &[Node],
+        vault_metadata: Option<&VaultMetadata>,
+    ) -> Result<(), io::Error> {
+        let content = Self::serialize_data(nodes, vault_metadata)?;
+        Self::atomic_write(&self.file_path, &content)
+    }
+
     fn validate_settings(
         settings: crate::models::AppSettings,
     ) -> Result<crate::models::AppSettings, StorageIssue> {
@@ -511,11 +847,35 @@ impl DataManager {
                 "Vault settings are incomplete",
             ));
         }
+        if settings.security.master_password_enabled
+            && settings
+                .security
+                .password_hash
+                .as_deref()
+                .is_some_and(str::is_empty)
+        {
+            return Err(StorageIssue::invalid_reason(
+                StorageFile::Settings,
+                "Vault password verifier is empty",
+            ));
+        }
+        if settings.security.master_password_enabled
+            && settings
+                .security
+                .derivation_salt
+                .as_deref()
+                .is_some_and(|salt| !derivation_salt_is_valid(salt))
+        {
+            return Err(StorageIssue::invalid_reason(
+                StorageFile::Settings,
+                "Vault derivation salt is invalid",
+            ));
+        }
 
         Ok(settings)
     }
 
-    fn read_backup(&self, filename: &str) -> Result<Vec<Node>, String> {
+    fn read_backup(&self, filename: &str) -> Result<DataContents, String> {
         if Self::backup_timestamp(filename).is_none()
             || filename.contains('/')
             || filename.contains('\\')
@@ -523,15 +883,8 @@ impl DataManager {
             return Err("Invalid backup filename".to_string());
         }
 
-        let content = fs::read(self.backups_dir.join(filename))
-            .map_err(|error| format!("Failed to read backup: {}", error))?;
-        serde_json::from_slice(&content).map_err(|error| {
-            format!(
-                "Invalid backup format at line {}, column {}",
-                error.line(),
-                error.column()
-            )
-        })
+        Self::read_data_file(&self.backups_dir.join(filename), StorageFile::Data)
+            .map_err(|issue| format!("Invalid backup: {}", issue.reason))
     }
 
     fn require_invalid_issue(
@@ -666,6 +1019,9 @@ mod tests {
     use super::{DataManager, StorageIssueKind};
     use crate::models::{AppSettings, Node, NodeType};
 
+    const FIRST_VALID_SALT: &str = "00112233445566778899aabbccddeeff";
+    const SECOND_VALID_SALT: &str = "ffeeddccbbaa99887766554433221100";
+
     fn snippet(label: &str) -> Node {
         Node {
             id: format!("{}-id", label),
@@ -692,6 +1048,14 @@ mod tests {
             encrypted_value: Some("nonce:ciphertext".to_string()),
             is_secret: Some(true),
         }
+    }
+
+    fn enabled_vault_settings(password_hash: &str, derivation_salt: &str) -> AppSettings {
+        let mut settings = AppSettings::default();
+        settings.security.master_password_enabled = true;
+        settings.security.password_hash = Some(password_hash.to_string());
+        settings.security.derivation_salt = Some(derivation_salt.to_string());
+        settings
     }
 
     #[test]
@@ -751,7 +1115,7 @@ mod tests {
 
         let error = manager.restore_backup("sklad_backup_123.json").unwrap_err();
 
-        assert!(error.starts_with("Invalid backup format"));
+        assert!(error.starts_with("Invalid backup:"));
         assert_eq!(manager.load_data().unwrap()[0].label, "current");
     }
 
@@ -950,13 +1314,34 @@ mod tests {
             settings.security.master_password_enabled = true;
             settings.security.password_hash = password_hash.map(str::to_string);
             settings.security.derivation_salt = derivation_salt.map(str::to_string);
-            manager.save_settings(&settings).unwrap();
+            std::fs::write(
+                manager.settings_path(),
+                serde_json::to_vec_pretty(&settings).unwrap(),
+            )
+            .unwrap();
 
             let issue = manager.load_settings().unwrap_err();
 
             assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
             assert_eq!(issue.reason, "Vault settings are incomplete");
         }
+    }
+
+    #[test]
+    fn invalid_derivation_salt_requires_recovery() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let settings = enabled_vault_settings("hash", "not-a-valid-salt");
+        assert!(manager.save_settings(&settings).is_err());
+        std::fs::write(
+            manager.settings_path(),
+            serde_json::to_vec_pretty(&settings).unwrap(),
+        )
+        .unwrap();
+
+        let issue = manager.load_settings().unwrap_err();
+        assert_eq!(issue.kind, StorageIssueKind::InvalidFormat);
+        assert_eq!(issue.reason, "Vault derivation salt is invalid");
     }
 
     #[test]
@@ -999,9 +1384,11 @@ mod tests {
     fn disabled_vault_with_encrypted_data_requires_recovery() {
         let directory = tempfile::tempdir().unwrap();
         let manager = DataManager::from_app_data_dir(directory.path().join("app"));
-        manager
-            .save_data(&[encrypted_snippet("disabled-secret")])
-            .unwrap();
+        std::fs::write(
+            &manager.file_path,
+            serde_json::to_vec(&vec![encrypted_snippet("disabled-secret")]).unwrap(),
+        )
+        .unwrap();
         manager.save_settings(&AppSettings::default()).unwrap();
 
         let status = manager.storage_status();
@@ -1015,14 +1402,11 @@ mod tests {
     fn complete_enabled_vault_metadata_keeps_encrypted_data_healthy() {
         let directory = tempfile::tempdir().unwrap();
         let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let settings = enabled_vault_settings("hash", FIRST_VALID_SALT);
+        manager.save_settings(&settings).unwrap();
         manager
             .save_data(&[encrypted_snippet("healthy-secret")])
             .unwrap();
-        let mut settings = AppSettings::default();
-        settings.security.master_password_enabled = true;
-        settings.security.password_hash = Some("hash".to_string());
-        settings.security.derivation_salt = Some("salt".to_string());
-        manager.save_settings(&settings).unwrap();
 
         let status = manager.storage_status();
 
@@ -1030,6 +1414,154 @@ mod tests {
         assert!(status.settings_issue.is_none());
         assert!(status.has_encrypted_secrets);
         assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn embedded_vault_metadata_recovers_missing_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let settings = enabled_vault_settings("original-hash", FIRST_VALID_SALT);
+        manager.save_settings(&settings).unwrap();
+        manager
+            .save_data(&[encrypted_snippet("recoverable-secret")])
+            .unwrap();
+
+        let persisted: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&manager.file_path).unwrap()).unwrap();
+        assert_eq!(persisted["version"], 1);
+        assert_eq!(
+            persisted["vaultMetadata"]["derivationSalt"],
+            FIRST_VALID_SALT
+        );
+
+        std::fs::remove_file(manager.settings_path()).unwrap();
+        let status = manager.storage_status();
+        assert!(status.settings_issue.is_some());
+        assert!(status.vault_metadata_recoverable);
+
+        assert_eq!(manager.recover_vault_metadata().unwrap(), None);
+        let recovered = manager.load_settings().unwrap();
+        assert_eq!(
+            recovered.security.password_hash.as_deref(),
+            Some("original-hash")
+        );
+        assert_eq!(
+            recovered.security.derivation_salt.as_deref(),
+            Some(FIRST_VALID_SALT)
+        );
+        assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn legacy_encrypted_data_is_upgraded_with_recoverable_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let settings = enabled_vault_settings("legacy-hash", FIRST_VALID_SALT);
+        manager.save_settings(&settings).unwrap();
+        let legacy_data = serde_json::to_vec(&vec![encrypted_snippet("legacy-secret")]).unwrap();
+        std::fs::write(&manager.file_path, &legacy_data).unwrap();
+
+        assert!(manager.ensure_vault_metadata_redundancy().unwrap());
+        assert!(!manager.ensure_vault_metadata_redundancy().unwrap());
+        let migration_copy = std::fs::read_dir(manager.file_path.parent().unwrap())
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("sklad.pre_metadata_migration_")
+            })
+            .unwrap();
+        assert_eq!(std::fs::read(migration_copy.path()).unwrap(), legacy_data);
+        std::fs::remove_file(manager.settings_path()).unwrap();
+
+        let status = manager.storage_status();
+        assert!(status.vault_metadata_recoverable);
+        manager.recover_vault_metadata().unwrap();
+        assert_eq!(
+            manager
+                .load_settings()
+                .unwrap()
+                .security
+                .derivation_salt
+                .as_deref(),
+            Some(FIRST_VALID_SALT)
+        );
+    }
+
+    #[test]
+    fn encrypted_backup_restores_its_vault_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let settings = enabled_vault_settings("backup-hash", FIRST_VALID_SALT);
+        manager.save_settings(&settings).unwrap();
+        std::fs::write(
+            &manager.file_path,
+            serde_json::to_vec(&vec![encrypted_snippet("backup-secret")]).unwrap(),
+        )
+        .unwrap();
+        manager.create_backup().unwrap();
+        let backup = manager.list_backups().remove(0);
+        assert!(backup.has_vault_metadata);
+
+        std::fs::remove_file(&manager.file_path).unwrap();
+        std::fs::remove_file(manager.settings_path()).unwrap();
+        let status = manager.storage_status();
+        assert_eq!(
+            status
+                .newest_vault_backup
+                .as_ref()
+                .map(|item| &item.filename),
+            Some(&backup.filename)
+        );
+
+        manager.restore_backup(&backup.filename).unwrap();
+        assert_eq!(manager.load_data().unwrap()[0].label, "backup-secret");
+        assert_eq!(
+            manager
+                .load_settings()
+                .unwrap()
+                .security
+                .derivation_salt
+                .as_deref(),
+            Some(FIRST_VALID_SALT)
+        );
+        assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn embedded_metadata_detects_and_repairs_mismatched_settings() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        manager
+            .save_settings(&enabled_vault_settings("first-hash", FIRST_VALID_SALT))
+            .unwrap();
+        manager
+            .save_data(&[encrypted_snippet("protected")])
+            .unwrap();
+        manager
+            .save_settings(&enabled_vault_settings("second-hash", SECOND_VALID_SALT))
+            .unwrap();
+
+        let status = manager.storage_status();
+        assert_eq!(
+            status.settings_issue.unwrap().kind,
+            StorageIssueKind::VaultMetadata
+        );
+        assert!(status.vault_metadata_recoverable);
+
+        let recovery_copy = manager.recover_vault_metadata().unwrap().unwrap();
+        assert!(recovery_copy.starts_with("settings.vault_recovery_"));
+        let repaired = manager.load_settings().unwrap();
+        assert_eq!(
+            repaired.security.password_hash.as_deref(),
+            Some("first-hash")
+        );
+        assert_eq!(
+            repaired.security.derivation_salt.as_deref(),
+            Some(FIRST_VALID_SALT)
+        );
     }
 
     #[test]
@@ -1097,9 +1629,11 @@ mod tests {
     fn invalid_settings_with_encrypted_data_cannot_be_reset_without_vault_recovery() {
         let directory = tempfile::tempdir().unwrap();
         let manager = DataManager::from_app_data_dir(directory.path().join("app"));
-        manager
-            .save_data(&[encrypted_snippet("protected")])
-            .unwrap();
+        std::fs::write(
+            &manager.file_path,
+            serde_json::to_vec(&vec![encrypted_snippet("protected")]).unwrap(),
+        )
+        .unwrap();
         let invalid_settings = b"{invalid settings";
         std::fs::write(manager.settings_path(), invalid_settings).unwrap();
 

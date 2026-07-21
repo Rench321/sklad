@@ -227,7 +227,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                             {snippetsPath || "Loading path..."}
                         </div>
                         <p className="text-[10px] text-muted-foreground/60 italic">
-                            All your snippets, folders, and settings are stored in this JSON file.
+                            Snippets and folders are stored here. Encrypted libraries also include the vault metadata needed for password-based recovery; other preferences remain in settings.json.
                         </p>
                     </div>
 
@@ -326,7 +326,7 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                         Backup History <span className="text-muted-foreground tabular-nums">({backups.length})</span>
                                     </div>
                                     <p className="mt-0.5 text-[10px] text-pretty text-muted-foreground/60">
-                                        Restore points are stored only on this device.
+                                        Restore points stay on this device. New backups containing encrypted snippets include the vault metadata required by the existing master password.
                                     </p>
                                 </div>
                                 <Button
@@ -352,9 +352,17 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
                                                 key={backup.filename}
                                                 className="flex min-h-12 items-center justify-between gap-3 rounded-lg border border-border/40 bg-background/50 py-1 pl-3 pr-1 text-xs"
                                             >
-                                                <span className="min-w-0 truncate font-mono tabular-nums text-muted-foreground">
-                                                    {new Date(backup.timestamp).toLocaleString()}
-                                                </span>
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    {backup.hasVaultMetadata && (
+                                                        <Shield
+                                                            aria-label="Includes vault recovery metadata"
+                                                            className="size-3.5 shrink-0 text-primary/70"
+                                                        />
+                                                    )}
+                                                    <span className="min-w-0 truncate font-mono tabular-nums text-muted-foreground">
+                                                        {new Date(backup.timestamp).toLocaleString()}
+                                                    </span>
+                                                </div>
                                                 <div className="flex shrink-0 items-center gap-1">
                                                     <span className="w-14 text-right tabular-nums text-muted-foreground/60">
                                                         {(backup.size / 1024).toFixed(1)} KB

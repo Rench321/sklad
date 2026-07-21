@@ -5,6 +5,8 @@ pub struct BackupInfo {
     pub filename: String,
     pub timestamp: i64,
     pub size: u64,
+    #[serde(rename = "hasVaultMetadata")]
+    pub has_vault_metadata: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

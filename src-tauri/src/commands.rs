@@ -9,13 +9,52 @@ use tauri_plugin_notification::NotificationExt;
 const SALT_SIZE: usize = 16;
 const ENCRYPTED_VALUE_SEPARATOR: char = ':';
 
+fn ensure_storage_healthy<R: Runtime>(
+    app: &AppHandle<R>,
+    data_manager: &DataManager,
+) -> Result<(), String> {
+    data_manager.ensure_storage_healthy().inspect_err(|_| {
+        let _ = app.emit("storage-recovery-required", ());
+    })
+}
+
+fn sync_global_shortcuts<R: Runtime>(app: &AppHandle<R>, settings: &crate::models::AppSettings) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    let _ = app.global_shortcut().unregister_all();
+    for (name, configured) in [
+        ("search", settings.global_search_shortcut.as_str()),
+        ("create", settings.global_create_shortcut.as_str()),
+    ] {
+        if configured.is_empty() {
+            continue;
+        }
+
+        match configured.parse::<tauri_plugin_global_shortcut::Shortcut>() {
+            Ok(shortcut) => {
+                if let Err(error) = app.global_shortcut().register(shortcut) {
+                    log::error!("Failed to register {} shortcut: {}", name, error);
+                }
+            }
+            Err(error) => {
+                log::error!(
+                    "Failed to parse {} shortcut string '{}': {}",
+                    name,
+                    configured,
+                    error
+                );
+            }
+        }
+    }
+}
+
 #[tauri::command]
 pub fn get_data(
     app: AppHandle,
     vault_manager: State<'_, VaultManager>,
 ) -> Result<Vec<Node>, String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let mut nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -34,7 +73,7 @@ pub fn init_vault(
     password: String,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let hash = security::hash_password(&password);
 
     let mut salt_bytes = [0u8; SALT_SIZE];
@@ -65,7 +104,7 @@ pub fn unlock_vault(
     password: String,
 ) -> Result<bool, String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
@@ -160,7 +199,7 @@ pub fn save_data(
     mut nodes: Vec<Node>,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -206,7 +245,7 @@ pub fn copy_snippet<R: Runtime>(
     id: String,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -254,7 +293,7 @@ pub fn copy_snippet<R: Runtime>(
 #[tauri::command]
 pub fn get_settings(app: AppHandle) -> Result<crate::models::AppSettings, String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     data_manager
         .load_settings()
         .map_err(|error| error.to_string())
@@ -267,7 +306,7 @@ pub fn save_settings(
     settings: crate::models::AppSettings,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
@@ -301,50 +340,7 @@ pub fn save_settings(
         std::sync::atomic::Ordering::Relaxed,
     );
 
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    let _ = app.global_shortcut().unregister_all();
-
-    // Register Search Shortcut
-    if !settings.global_search_shortcut.is_empty() {
-        match settings
-            .global_search_shortcut
-            .parse::<tauri_plugin_global_shortcut::Shortcut>()
-        {
-            Ok(shortcut) => {
-                if let Err(e) = app.global_shortcut().register(shortcut) {
-                    log::error!("Failed to register search shortcut: {}", e);
-                }
-            }
-            Err(e) => {
-                log::error!(
-                    "Failed to parse search shortcut string '{}': {}",
-                    settings.global_search_shortcut,
-                    e
-                );
-            }
-        }
-    }
-
-    // Register Create Shortcut
-    if !settings.global_create_shortcut.is_empty() {
-        match settings
-            .global_create_shortcut
-            .parse::<tauri_plugin_global_shortcut::Shortcut>()
-        {
-            Ok(shortcut) => {
-                if let Err(e) = app.global_shortcut().register(shortcut) {
-                    log::error!("Failed to register create shortcut: {}", e);
-                }
-            }
-            Err(e) => {
-                log::error!(
-                    "Failed to parse create shortcut string '{}': {}",
-                    settings.global_create_shortcut,
-                    e
-                );
-            }
-        }
-    }
+    sync_global_shortcuts(&app, &settings);
 
     if let Ok(menu) = crate::tray_generator::TrayGenerator::generate_menu(&app, &nodes, &settings) {
         if let Some(tray) = app.tray_by_id("main") {
@@ -419,7 +415,7 @@ pub fn reset_vault(
     vault_manager: State<'_, VaultManager>,
 ) -> Result<(Vec<Node>, crate::models::AppSettings), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let mut nodes = data_manager
         .load_data()
         .map_err(|error| error.to_string())?;
@@ -460,7 +456,7 @@ fn has_encrypted_values(nodes: &[Node]) -> bool {
 #[tauri::command]
 pub fn create_backup(app: AppHandle) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.ensure_storage_healthy()?;
+    ensure_storage_healthy(&app, &data_manager)?;
     let settings = data_manager
         .load_settings()
         .map_err(|error| error.to_string())?;
@@ -479,12 +475,26 @@ pub fn get_backups(app: AppHandle) -> Vec<crate::models::BackupInfo> {
 }
 
 #[tauri::command]
-pub fn restore_backup(app: AppHandle, filename: String) -> Result<(), String> {
+pub fn restore_backup(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+    filename: String,
+) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
     data_manager.restore_backup(&filename)?;
+    *vault_manager.state.lock().unwrap() = VaultState::Locked;
+    let settings = data_manager
+        .load_settings()
+        .map_err(|issue| issue.to_string())?;
+    crate::LOGGING_ENABLED.store(
+        settings.logging_enabled,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    sync_global_shortcuts(&app, &settings);
     refresh_tray_from_storage(&app, &data_manager)?;
 
-    app.emit("data-updated", ()).map_err(|e| e.to_string())?;
+    app.emit("storage-restored", ())
+        .map_err(|error| error.to_string())?;
 
     Ok(())
 }
@@ -518,6 +528,28 @@ pub fn reset_corrupt_settings(
     let _ = app.global_shortcut().unregister_all();
     refresh_tray_from_storage(&app, &data_manager)?;
     Ok(quarantined)
+}
+
+#[tauri::command]
+pub fn recover_vault_metadata(
+    app: AppHandle,
+    vault_manager: State<'_, VaultManager>,
+) -> Result<Option<String>, String> {
+    let data_manager = DataManager::new(&app);
+    let recovery_copy = data_manager.recover_vault_metadata()?;
+    *vault_manager.state.lock().unwrap() = VaultState::Locked;
+    let settings = data_manager
+        .load_settings()
+        .map_err(|issue| issue.to_string())?;
+    crate::LOGGING_ENABLED.store(
+        settings.logging_enabled,
+        std::sync::atomic::Ordering::Relaxed,
+    );
+    sync_global_shortcuts(&app, &settings);
+    refresh_tray_from_storage(&app, &data_manager)?;
+    app.emit("data-updated", ())
+        .map_err(|error| error.to_string())?;
+    Ok(recovery_copy)
 }
 
 #[tauri::command]

@@ -20,7 +20,7 @@ interface StorageRecoveryProps {
   onRetry: () => Promise<void>;
 }
 
-type RecoveryAction = "restore" | "reset-data" | "reset-settings" | "discard-vault" | "retry" | "open";
+type RecoveryAction = "restore" | "recover-vault" | "reset-data" | "reset-settings" | "discard-vault" | "retry" | "open";
 type Confirmation = "data" | "settings" | "vault" | null;
 
 const actionClassName =
@@ -96,6 +96,9 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   const [notice, setNotice] = useState<string | null>(null);
 
   const isBusy = busyAction !== null;
+  const proposedDataBackup = status.dataIssue && status.settingsIssue && status.hasEncryptedSecrets
+    ? status.newestVaultBackup
+    : status.newestValidBackup;
 
   const runAction = async (
     action: RecoveryAction,
@@ -114,12 +117,35 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   };
 
   const restoreBackup = () => {
-    const backup = status.newestValidBackup;
+    const backup = proposedDataBackup;
     if (!backup) return;
 
     void runAction("restore", async () => {
       await api.restoreBackup(backup.filename);
       setNotice("The newest valid backup was restored.");
+      await onRetry();
+    });
+  };
+
+  const restoreVaultBackup = () => {
+    const backup = status.newestVaultBackup;
+    if (!backup) return;
+
+    void runAction("restore", async () => {
+      await api.restoreBackup(backup.filename);
+      setNotice("The newest backup with vault metadata was restored.");
+      await onRetry();
+    });
+  };
+
+  const recoverVaultMetadata = () => {
+    void runAction("recover-vault", async () => {
+      const recoveryCopy = await api.recoverVaultMetadata();
+      setNotice(
+        recoveryCopy
+          ? `Vault settings were restored. The previous settings were preserved as ${recoveryCopy}.`
+          : "Vault settings were restored from the recovery metadata in sklad.json.",
+      );
       await onRetry();
     });
   };
@@ -198,20 +224,20 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
         {status.dataIssue?.kind === "invalid_format" && (
           <section className="mt-5 rounded-xl bg-primary/6 p-4 shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07)]">
             <h2 className="text-sm font-semibold">Snippet recovery</h2>
-            {status.newestValidBackup ? (
+            {proposedDataBackup ? (
               <>
                 <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
                   The newest valid backup was created on{" "}
                   <time
                     className="font-medium text-foreground"
-                    dateTime={backupDateTime(status.newestValidBackup.timestamp)}
+                    dateTime={backupDateTime(proposedDataBackup.timestamp)}
                   >
-                    {formatBackupTimestamp(status.newestValidBackup.timestamp)}
+                    {formatBackupTimestamp(proposedDataBackup.timestamp)}
                   </time>
                   .
                 </p>
                 <p className="mt-1 break-all font-mono text-xs leading-5 text-muted-foreground">
-                  {status.newestValidBackup.filename}
+                  {proposedDataBackup.filename}
                 </p>
               </>
             ) : (
@@ -249,7 +275,7 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
               </div>
             ) : (
               <div className="mt-4 flex flex-wrap gap-2">
-                {status.newestValidBackup && (
+                {proposedDataBackup && (
                   <Button
                     className={actionClassName}
                     disabled={isBusy}
@@ -329,18 +355,60 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
           (status.settingsIssue.kind === "vault_metadata" ||
             status.settingsIssue.kind === "invalid_format") && (
             <section className="mt-5 rounded-xl bg-destructive/6 p-4 shadow-[0_0_0_1px_rgba(220,38,38,0.16)]">
-              <h2 className="text-balance text-sm font-semibold">Unavailable vault recovery</h2>
+              <h2 className="text-balance text-sm font-semibold">
+                {status.vaultMetadataRecoverable || status.newestVaultBackup
+                  ? "Vault metadata recovery"
+                  : "Unavailable vault recovery"}
+              </h2>
               {status.dataIssue ? (
                 <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-                  Recover the snippet file first. Sklad must be able to read it before it can preserve public snippets and remove encrypted ones safely.
+                  Recover the snippet file first. When the proposed backup contains vault metadata, Sklad restores the encrypted data and its required settings together.
                 </p>
               ) : (
                 <>
-                  <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
-                    The original vault cannot be unlocked safely from the available metadata. You can keep inspecting the files manually, or reset the vault and retain only readable public snippets.
-                  </p>
+                  {status.vaultMetadataRecoverable ? (
+                    <>
+                      <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+                        Sklad found a recovery copy of the vault metadata inside the snippet file. Restore it to settings, then unlock the vault with the existing master password.
+                      </p>
+                      <Button
+                        className={`mt-3 ${actionClassName}`}
+                        disabled={isBusy}
+                        onClick={recoverVaultMetadata}
+                      >
+                        {busyAction === "recover-vault" ? (
+                          <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                        ) : (
+                          <ArchiveRestore aria-hidden="true" />
+                        )}
+                        Restore vault metadata
+                      </Button>
+                    </>
+                  ) : status.newestVaultBackup ? (
+                    <>
+                      <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+                        The active snippet file has no recoverable vault metadata, but a self-contained encrypted backup is available. Restoring it also restores the metadata required by the existing master password.
+                      </p>
+                      <Button
+                        className={`mt-3 ${actionClassName}`}
+                        disabled={isBusy}
+                        onClick={restoreVaultBackup}
+                      >
+                        {busyAction === "restore" ? (
+                          <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                        ) : (
+                          <ArchiveRestore aria-hidden="true" />
+                        )}
+                        Restore encrypted backup
+                      </Button>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-pretty text-sm leading-6 text-muted-foreground">
+                      The original vault cannot be unlocked safely from the available metadata. You can keep inspecting the files manually, or reset the vault and retain only readable public snippets.
+                    </p>
+                  )}
                   <p className="mt-3 rounded-lg bg-background/65 px-3 py-2 text-pretty text-sm leading-6 text-muted-foreground shadow-[inset_0_0_0_1px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.07)]">
-                    Before changing active data, Sklad preserves existing data and settings as recovery copies. Existing backups are left untouched.
+                    If you reset instead, Sklad preserves existing data and settings as recovery copies, then removes encrypted snippets from the active library. Existing backups are left untouched.
                   </p>
 
                   {confirmation === "vault" ? (

@@ -46,6 +46,17 @@ function App() {
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
 
+  const enterStorageRecovery = (status: StorageStatus) => {
+    setStorageStatus(status);
+    setNodes([]);
+    setSelectedNode(null);
+    setSettings(null);
+    setIsUnlocked(false);
+    setShowLockModal(false);
+    setShowSetupModal(false);
+    setLoaded(true);
+  };
+
   useEffect(() => {
     initializeApp();
 
@@ -68,10 +79,36 @@ function App() {
       loadNodes();
     });
 
+    const unlistenRestore = listen("storage-restored", () => {
+      void initializeApp();
+    });
+
+    const inspectStorage = async () => {
+      try {
+        const status = await api.getStorageStatus();
+        if (status.dataIssue || status.settingsIssue) {
+          enterStorageRecovery(status);
+        }
+      } catch (error) {
+        console.error("Failed to inspect storage", error);
+      }
+    };
+
+    const unlistenRecovery = listen("storage-recovery-required", () => {
+      void inspectStorage();
+    });
+
+    const unlistenFocus = getCurrentWebviewWindow().onFocusChanged(({ payload: focused }) => {
+      if (focused) void inspectStorage();
+    });
+
     return () => {
       unlistenUnlock.then((fn) => fn());
       unlistenOpenSnippet.then((fn) => fn());
       unlistenUpdate.then((fn) => fn());
+      unlistenRestore.then((fn) => fn());
+      unlistenRecovery.then((fn) => fn());
+      unlistenFocus.then((fn) => fn());
     };
   }, []);
 
@@ -88,12 +125,7 @@ function App() {
     try {
       const status = await api.getStorageStatus();
       if (status.dataIssue || status.settingsIssue) {
-        setStorageStatus(status);
-        setNodes([]);
-        setSelectedNode(null);
-        setSettings(null);
-        setIsUnlocked(false);
-        setLoaded(true);
+        enterStorageRecovery(status);
         return;
       }
 
@@ -115,8 +147,7 @@ function App() {
       try {
         const status = await api.getStorageStatus();
         if (status.dataIssue || status.settingsIssue) {
-          setStorageStatus(status);
-          setSettings(null);
+          enterStorageRecovery(status);
         }
       } catch (statusError) {
         console.error("Failed to inspect storage", statusError);
@@ -147,10 +178,7 @@ function App() {
       try {
         const status = await api.getStorageStatus();
         if (status.dataIssue || status.settingsIssue) {
-          setStorageStatus(status);
-          setSettings(null);
-          setNodes([]);
-          setSelectedNode(null);
+          enterStorageRecovery(status);
         }
       } catch (statusError) {
         console.error("Failed to inspect storage", statusError);

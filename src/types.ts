@@ -4,6 +4,7 @@ export interface BackupInfo {
     filename: string;
     timestamp: number;
     size: number;
+    hasVaultMetadata: boolean;
 }
 
 export type StorageFile = 'data' | 'settings';
@@ -20,7 +21,9 @@ export interface StorageStatus {
     dataIssue: StorageIssue | null;
     settingsIssue: StorageIssue | null;
     newestValidBackup: BackupInfo | null;
+    newestVaultBackup: BackupInfo | null;
     hasEncryptedSecrets: boolean;
+    vaultMetadataRecoverable: boolean;
 }
 
 export interface VaultRecoveryResult {
