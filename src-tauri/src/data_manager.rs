@@ -571,7 +571,7 @@ impl DataManager {
             }
         }
 
-        backups.sort_by(|a, b| b.0.cmp(&a.0));
+        backups.sort_by_key(|backup| std::cmp::Reverse(backup.0));
 
         let to_delete = backups.iter().skip(keep_count as usize);
 
@@ -608,7 +608,7 @@ impl DataManager {
             }
         }
 
-        backups.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        backups.sort_by_key(|backup| std::cmp::Reverse(backup.timestamp));
         backups
     }
 
