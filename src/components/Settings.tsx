@@ -130,7 +130,10 @@ export function Settings({ settings, onResetTrigger, onSetupTrigger, onSettingsU
             }
         } catch (error) {
             console.error("Failed to restore backup", error);
-            setBackupNotice({ type: "error", message: "Could not restore this backup." });
+            setBackupNotice({
+                type: "error",
+                message: typeof error === "string" ? error : "Could not restore this backup.",
+            });
         } finally {
             setRestoringBackup(null);
         }

@@ -32,7 +32,8 @@ export const api = {
 
     getBackups: (): Promise<BackupInfo[]> => invoke("get_backups"),
 
-    restoreBackup: (filename: string): Promise<void> => invoke("restore_backup", { filename }),
+    restoreBackup: (filename: string, legacyVaultPassword?: string): Promise<void> =>
+        invoke("restore_backup", { filename, legacyVaultPassword }),
 
     getStorageStatus: (): Promise<StorageStatus> => invoke("get_storage_status"),
 

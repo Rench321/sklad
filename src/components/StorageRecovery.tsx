@@ -92,6 +92,7 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   const [busyAction, setBusyAction] = useState<RecoveryAction | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [vaultConfirmation, setVaultConfirmation] = useState("");
+  const [legacyBackupPassword, setLegacyBackupPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -99,6 +100,11 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
   const proposedDataBackup = status.dataIssue && status.settingsIssue && status.hasEncryptedSecrets
     ? status.newestVaultBackup
     : status.newestValidBackup;
+  const legacyBackupNeedsPassword = Boolean(
+    proposedDataBackup
+      && status.hasEncryptedSecrets
+      && !proposedDataBackup.hasVaultMetadata,
+  );
 
   const runAction = async (
     action: RecoveryAction,
@@ -121,7 +127,11 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
     if (!backup) return;
 
     void runAction("restore", async () => {
-      await api.restoreBackup(backup.filename);
+      await api.restoreBackup(
+        backup.filename,
+        legacyBackupNeedsPassword ? legacyBackupPassword : undefined,
+      );
+      setLegacyBackupPassword("");
       setNotice("The newest valid backup was restored.");
       await onRetry();
     });
@@ -274,30 +284,46 @@ export function StorageRecovery({ status, onRetry }: StorageRecoveryProps) {
                 </div>
               </div>
             ) : (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {proposedDataBackup && (
+              <div className="mt-4">
+                {legacyBackupNeedsPassword && (
+                  <label className="mb-3 block text-xs font-medium text-muted-foreground" htmlFor="legacy-backup-password">
+                    Master password used when this legacy backup was created
+                    <Input
+                      autoComplete="current-password"
+                      className="mt-2 min-h-10"
+                      disabled={isBusy}
+                      id="legacy-backup-password"
+                      onChange={(event) => setLegacyBackupPassword(event.target.value)}
+                      type="password"
+                      value={legacyBackupPassword}
+                    />
+                  </label>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  {proposedDataBackup && (
+                    <Button
+                      className={actionClassName}
+                      disabled={isBusy || (legacyBackupNeedsPassword && !legacyBackupPassword)}
+                      onClick={restoreBackup}
+                    >
+                      {busyAction === "restore" ? (
+                        <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
+                      ) : (
+                        <ArchiveRestore aria-hidden="true" />
+                      )}
+                      Restore newest valid backup
+                    </Button>
+                  )}
                   <Button
                     className={actionClassName}
                     disabled={isBusy}
-                    onClick={restoreBackup}
+                    onClick={() => setConfirmation("data")}
+                    variant="outline"
                   >
-                    {busyAction === "restore" ? (
-                      <LoaderCircle aria-hidden="true" className="animate-spin motion-reduce:animate-none" />
-                    ) : (
-                      <ArchiveRestore aria-hidden="true" />
-                    )}
-                    Restore newest valid backup
+                    <RotateCcw aria-hidden="true" />
+                    Create fresh library
                   </Button>
-                )}
-                <Button
-                  className={actionClassName}
-                  disabled={isBusy}
-                  onClick={() => setConfirmation("data")}
-                  variant="outline"
-                >
-                  <RotateCcw aria-hidden="true" />
-                  Create fresh library
-                </Button>
+                </div>
               </div>
             )}
           </section>

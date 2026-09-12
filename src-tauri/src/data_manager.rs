@@ -1,4 +1,5 @@
 use crate::models::{AppSettings, BackupInfo, Node};
+use crate::security::{self, Key};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fs;
 use std::io::{self, Write};
@@ -626,7 +627,11 @@ impl DataManager {
         })
     }
 
-    pub fn restore_backup(&self, filename: &str) -> Result<(), String> {
+    pub fn restore_backup(
+        &self,
+        filename: &str,
+        legacy_vault_key: Option<&Key>,
+    ) -> Result<(), String> {
         if Self::backup_timestamp(filename).is_none()
             || filename.contains('/')
             || filename.contains('\\')
@@ -642,6 +647,16 @@ impl DataManager {
 
         let mut backup = self.read_backup(filename)?;
         if Self::has_encrypted_secrets(&backup.nodes) && backup.vault_metadata.is_none() {
+            let key = legacy_vault_key.ok_or_else(|| {
+                "Unlock the vault with the master password used by this legacy backup, then try again"
+                    .to_string()
+            })?;
+            if !Self::encrypted_values_match_key(&backup.nodes, key) {
+                return Err(
+                    "This legacy backup does not match the currently unlocked vault; no files were changed"
+                        .to_string(),
+                );
+            }
             let settings = self.load_settings().map_err(|issue| {
                 format!("This legacy backup needs the original settings: {}", issue)
             })?;
@@ -950,6 +965,22 @@ impl DataManager {
         })
     }
 
+    fn encrypted_values_match_key(nodes: &[Node], key: &Key) -> bool {
+        nodes.iter().all(|node| {
+            let value_matches = node.encrypted_value.as_deref().is_none_or(|encrypted| {
+                let Some((nonce, ciphertext)) = encrypted.split_once(':') else {
+                    return false;
+                };
+                !ciphertext.contains(':') && security::decrypt(ciphertext, nonce, key).is_ok()
+            });
+            value_matches
+                && node
+                    .children
+                    .as_deref()
+                    .is_none_or(|children| Self::encrypted_values_match_key(children, key))
+        })
+    }
+
     fn remove_unrecoverable_secrets(nodes: &mut Vec<Node>) -> usize {
         let original_len = nodes.len();
         nodes.retain(|node| !node.is_secret.unwrap_or(false) && node.encrypted_value.is_none());
@@ -1018,6 +1049,7 @@ impl DataManager {
 mod tests {
     use super::{DataManager, StorageIssueKind};
     use crate::models::{AppSettings, Node, NodeType};
+    use crate::security;
 
     const FIRST_VALID_SALT: &str = "00112233445566778899aabbccddeeff";
     const SECOND_VALID_SALT: &str = "ffeeddccbbaa99887766554433221100";
@@ -1048,6 +1080,13 @@ mod tests {
             encrypted_value: Some("nonce:ciphertext".to_string()),
             is_secret: Some(true),
         }
+    }
+
+    fn encrypted_snippet_with_key(label: &str, key: &security::Key) -> Node {
+        let (ciphertext, nonce) = security::encrypt(label, key).unwrap();
+        let mut node = encrypted_snippet(label);
+        node.encrypted_value = Some(format!("{}:{}", nonce, ciphertext));
+        node
     }
 
     fn enabled_vault_settings(password_hash: &str, derivation_salt: &str) -> AppSettings {
@@ -1095,7 +1134,7 @@ mod tests {
         let old_backup = manager.list_backups()[0].filename.clone();
         manager.save_data(&[snippet("current")]).unwrap();
 
-        manager.restore_backup(&old_backup).unwrap();
+        manager.restore_backup(&old_backup, None).unwrap();
 
         assert_eq!(manager.load_data().unwrap()[0].label, "old");
         let safety_backup = &manager.list_backups()[0];
@@ -1113,7 +1152,9 @@ mod tests {
         let invalid_backup = manager.backups_dir.join("sklad_backup_123.json");
         std::fs::write(invalid_backup, b"not json").unwrap();
 
-        let error = manager.restore_backup("sklad_backup_123.json").unwrap_err();
+        let error = manager
+            .restore_backup("sklad_backup_123.json", None)
+            .unwrap_err();
 
         assert!(error.starts_with("Invalid backup:"));
         assert_eq!(manager.load_data().unwrap()[0].label, "current");
@@ -1125,11 +1166,11 @@ mod tests {
         let manager = DataManager::from_app_data_dir(directory.path().join("app"));
 
         assert_eq!(
-            manager.restore_backup("../sklad_backup_123.json"),
+            manager.restore_backup("../sklad_backup_123.json", None),
             Err("Invalid backup filename".to_string())
         );
         assert_eq!(
-            manager.restore_backup("..\\sklad_backup_123.json"),
+            manager.restore_backup("..\\sklad_backup_123.json", None),
             Err("Invalid backup filename".to_string())
         );
     }
@@ -1200,7 +1241,7 @@ mod tests {
         let backup_content = serde_json::to_vec(&vec![snippet("recovered")]).unwrap();
         std::fs::write(manager.backups_dir.join(backup_filename), backup_content).unwrap();
 
-        manager.restore_backup(backup_filename).unwrap();
+        manager.restore_backup(backup_filename, None).unwrap();
 
         assert_eq!(manager.load_data().unwrap()[0].label, "recovered");
         let quarantine = std::fs::read_dir(manager.file_path.parent().unwrap())
@@ -1516,7 +1557,7 @@ mod tests {
             Some(&backup.filename)
         );
 
-        manager.restore_backup(&backup.filename).unwrap();
+        manager.restore_backup(&backup.filename, None).unwrap();
         assert_eq!(manager.load_data().unwrap()[0].label, "backup-secret");
         assert_eq!(
             manager
@@ -1528,6 +1569,58 @@ mod tests {
             Some(FIRST_VALID_SALT)
         );
         assert!(!manager.has_storage_issues());
+    }
+
+    #[test]
+    fn legacy_encrypted_backup_requires_its_matching_unlocked_vault() {
+        let directory = tempfile::tempdir().unwrap();
+        let manager = DataManager::from_app_data_dir(directory.path().join("app"));
+        let old_password = "old test password";
+        let new_password = "new test password";
+        let old_key = security::derive_key_from_password(old_password, FIRST_VALID_SALT);
+        let new_key = security::derive_key_from_password(new_password, SECOND_VALID_SALT);
+        let legacy_node = encrypted_snippet_with_key("legacy-secret", &old_key);
+        let backup_filename = "sklad_backup_1.json";
+        std::fs::write(
+            manager.backups_dir.join(backup_filename),
+            serde_json::to_vec(&vec![legacy_node.clone()]).unwrap(),
+        )
+        .unwrap();
+
+        let new_settings =
+            enabled_vault_settings(&security::hash_password(new_password), SECOND_VALID_SALT);
+        manager.save_settings(&new_settings).unwrap();
+        manager.save_data(&[snippet("current-library")]).unwrap();
+        let current_data = std::fs::read(&manager.file_path).unwrap();
+        let current_settings = std::fs::read(manager.settings_path()).unwrap();
+
+        let locked_error = manager.restore_backup(backup_filename, None).unwrap_err();
+        assert!(locked_error.starts_with("Unlock the vault"));
+        let mismatch_error = manager
+            .restore_backup(backup_filename, Some(&new_key))
+            .unwrap_err();
+        assert!(mismatch_error.contains("does not match"));
+        assert_eq!(std::fs::read(&manager.file_path).unwrap(), current_data);
+        assert_eq!(
+            std::fs::read(manager.settings_path()).unwrap(),
+            current_settings
+        );
+
+        let old_settings =
+            enabled_vault_settings(&security::hash_password(old_password), FIRST_VALID_SALT);
+        manager.save_settings(&old_settings).unwrap();
+        manager
+            .restore_backup(backup_filename, Some(&old_key))
+            .unwrap();
+
+        assert!(!manager.has_storage_issues());
+        let restored = manager.load_data().unwrap();
+        let encrypted = restored[0].encrypted_value.as_deref().unwrap();
+        let (nonce, ciphertext) = encrypted.split_once(':').unwrap();
+        assert_eq!(
+            security::decrypt(ciphertext, nonce, &old_key).unwrap(),
+            "legacy-secret"
+        );
     }
 
     #[test]
