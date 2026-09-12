@@ -479,9 +479,37 @@ pub fn restore_backup(
     app: AppHandle,
     vault_manager: State<'_, VaultManager>,
     filename: String,
+    legacy_vault_password: Option<String>,
 ) -> Result<(), String> {
     let data_manager = DataManager::new(&app);
-    data_manager.restore_backup(&filename)?;
+    let unlocked_vault_key = match &*vault_manager.state.lock().unwrap() {
+        VaultState::Unlocked(key) => Some(*key),
+        VaultState::Locked => None,
+    };
+    let supplied_vault_key = legacy_vault_password
+        .as_deref()
+        .map(|password| {
+            let settings = data_manager
+                .load_settings()
+                .map_err(|issue| format!("This legacy backup needs valid settings: {}", issue))?;
+            let hash = settings
+                .security
+                .password_hash
+                .as_deref()
+                .ok_or_else(|| "Vault password verifier is unavailable".to_string())?;
+            if !security::verify_password(password, hash) {
+                return Err("Incorrect master password; no files were changed".to_string());
+            }
+            let salt = settings
+                .security
+                .derivation_salt
+                .as_deref()
+                .ok_or_else(|| "Vault derivation salt is unavailable".to_string())?;
+            Ok(security::derive_key_from_password(password, salt))
+        })
+        .transpose()?;
+    let legacy_vault_key = supplied_vault_key.or(unlocked_vault_key);
+    data_manager.restore_backup(&filename, legacy_vault_key.as_ref())?;
     *vault_manager.state.lock().unwrap() = VaultState::Locked;
     let settings = data_manager
         .load_settings()
